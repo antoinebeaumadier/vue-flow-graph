@@ -12,6 +12,7 @@ export default {
           event: {
               nodeId: null,
           },
+          default: true,
       }
   ],
   properties: {

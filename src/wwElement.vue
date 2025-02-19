@@ -145,6 +145,7 @@ watchEffect(() => {
 });
 
 // Handle Node Click
+// Handle Node Click
 const handleNodeClick = (event) => {
   console.log("Click event:", event);
   const nodeId = event?.node?.id || null;
@@ -153,8 +154,23 @@ const handleNodeClick = (event) => {
   console.log("Node clicked:", nodeId);
   updateHighlighting(nodeId);
 
-  // Update WeWeb variable
-  emit("update:content", { selectedNodeId: nodeId, selectedInWeWeb: nodeId });
+  // Fix: Properly structure the content update
+  const updatedContent = {
+    ...props.content,
+    selectedNodeId: nodeId,
+    selectedInWeWeb: nodeId
+  };
+  
+  // Emit the content update
+  emit("update:content", updatedContent);
+  
+  // Emit the trigger event for node click
+  emit("trigger-event", {
+    name: "node:click",
+    event: {
+      nodeId: nodeId
+    }
+  });
 };
 
 // Watch for Changes from WeWeb Selection

@@ -82,8 +82,8 @@ watchEffect(() => {
     groupedNodes[node.parent_id].push(node);
   });
 
-  let spacingX = 250;
-  let spacingYBase = 180;
+  let spacingX = 200;
+  let spacingYBase = 75;
 
   nodes.value = props.content.data.map((node) => {
     let xPos = 600;

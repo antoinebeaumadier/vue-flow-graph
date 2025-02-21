@@ -83,7 +83,7 @@ watchEffect(() => {
   });
 
   let spacingX = 200;
-  let spacingYBase = 75;
+  let spacingYBase = 120;
 
   nodes.value = props.content.data.map((node) => {
     let xPos = 600;

@@ -15,6 +15,76 @@ const highlightedEdges = ref([]);
 const nodes = ref([]);
 const edges = ref([]);
 
+// Helper function to calculate node positions with better spacing
+const calculateNodePositions = (data) => {
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
+  
+  // Group nodes by rank for horizontal positioning
+  const nodesByRank = {};
+  data.forEach(node => {
+    const rank = node.rank || 0;
+    if (!nodesByRank[rank]) nodesByRank[rank] = [];
+    nodesByRank[rank].push(node);
+  });
+  
+  // Group nodes by parent for sibling relationships
+  const groupedNodes = {};
+  data.forEach((node) => {
+    if (!groupedNodes[node.parent_id]) {
+      groupedNodes[node.parent_id] = [];
+    }
+    groupedNodes[node.parent_id].push(node);
+  });
+  
+  // Calculate positions with more intelligent spacing
+  const spacingX = 250;  // Horizontal spacing between siblings
+  const spacingYBase = 150;  // Vertical spacing between ranks
+  const baseX = 600;  // Center X position
+  
+  return data.map((node) => {
+    const rank = node.rank || 0;
+    let xPos = baseX;
+    let yPos = rank * spacingYBase;
+    
+    // Position siblings horizontally centered around their parent
+    if (groupedNodes[node.parent_id]?.length > 1) {
+      const siblings = groupedNodes[node.parent_id];
+      const siblingIndex = siblings.findIndex((sibling) => sibling.id === node.id);
+      const totalWidth = (siblings.length - 1) * spacingX;
+      
+      // Center the sibling group
+      xPos = baseX + siblingIndex * spacingX - (totalWidth / 2);
+    } else {
+      // For ranks with multiple non-sibling nodes, distribute them evenly
+      const nodesInRank = nodesByRank[rank] || [];
+      if (nodesInRank.length > 1) {
+        const nodeIndex = nodesInRank.findIndex(n => n.id === node.id);
+        const totalWidth = (nodesInRank.length - 1) * spacingX;
+        xPos = baseX + nodeIndex * spacingX - (totalWidth / 2);
+      }
+    }
+    
+    const stringNodeId = String(node.id);
+    const isHighlighted = highlightedNode.value === stringNodeId;
+    
+    return {
+      id: stringNodeId,
+      position: { x: xPos, y: yPos },
+      data: { label: `${node.name} - ${node.company_name}` },
+      draggable: false,
+      style: {
+        backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
+        color: "#fff",
+        padding: "10px",
+        borderRadius: "8px",
+        textAlign: "center",
+        border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+        cursor: "pointer",
+      },
+    };
+  });
+};
+
 // Helper function to update highlighting consistently
 const updateHighlighting = (nodeId) => {
   if (!nodeId) return;
@@ -66,54 +136,15 @@ const updateHighlighting = (nodeId) => {
   });
 };
 
-// Compute Nodes
+// Compute Nodes using improved positioning algorithm
 watchEffect(() => {
   if (!props.content.data || !Array.isArray(props.content.data)) {
     console.log("No nodes available");
     nodes.value = [];
     return;
   }
-
-  const groupedNodes = {};
-  props.content.data.forEach((node) => {
-    if (!groupedNodes[node.parent_id]) {
-      groupedNodes[node.parent_id] = [];
-    }
-    groupedNodes[node.parent_id].push(node);
-  });
-
-  let spacingX = 200;
-  let spacingYBase = 120;
-
-  nodes.value = props.content.data.map((node) => {
-    let xPos = 600;
-    let yPos = node.rank * spacingYBase;
-
-    if (groupedNodes[node.parent_id]?.length > 1) {
-      let siblings = groupedNodes[node.parent_id];
-      let siblingIndex = siblings.findIndex((sibling) => sibling.id === node.id);
-      xPos = 600 + siblingIndex * spacingX - ((siblings.length - 1) * spacingX) / 2;
-    }
-
-    const stringNodeId = String(node.id);
-    const isHighlighted = highlightedNode.value === stringNodeId;
-    
-    return {
-      id: stringNodeId,
-      position: { x: xPos, y: yPos },
-      data: { label: `${node.name} - ${node.company_name}` },
-      draggable: false,
-      style: {
-        backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-        color: "#fff",
-        padding: "10px",
-        borderRadius: "8px",
-        textAlign: "center",
-        border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
-        cursor: "pointer",
-      },
-    };
-  });
+  
+  nodes.value = calculateNodePositions(props.content.data);
 });
 
 // Compute Edges
@@ -144,7 +175,6 @@ watchEffect(() => {
   );
 });
 
-// Handle Node Click
 // Handle Node Click
 const handleNodeClick = (event) => {
   console.log("Click event:", event);
@@ -181,10 +211,32 @@ watch(() => props.content.selectedInWeWeb, (newSelectedId) => {
   updateHighlighting(newSelectedId);
 });
 
+// Center the view on component mount
 onMounted(() => {
+  // Allow a short delay for the graph to render first
   setTimeout(() => {
-    console.log("Org Chart Mounted", props.content);
-  }, 50);
+    console.log("Org Chart Mounted - Fitting View", props.content);
+    if (nodes.value.length > 0) {
+      fitView({ 
+        padding: 0.5,
+        includeHiddenNodes: false,
+        duration: 800
+      });
+    }
+  }, 300);
+});
+
+// Re-center when nodes change
+watch(() => nodes.value.length, (newLength, oldLength) => {
+  if (newLength > 0) {
+    nextTick(() => {
+      fitView({ 
+        padding: 0.5,
+        includeHiddenNodes: false,
+        duration: 800 
+      });
+    });
+  }
 });
 </script>
 

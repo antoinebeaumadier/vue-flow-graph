@@ -19,61 +19,94 @@ const edges = ref([]);
 const calculateNodePositions = (data) => {
   if (!data || !Array.isArray(data) || data.length === 0) return [];
   
-  // Group nodes by rank for horizontal positioning
-  const nodesByRank = {};
+  // Create a map of nodes by ID for easier access
+  const nodesById = {};
   data.forEach(node => {
-    const rank = node.rank || 0;
-    if (!nodesByRank[rank]) nodesByRank[rank] = [];
-    nodesByRank[rank].push(node);
+    nodesById[node.id] = { ...node, children: [] };
   });
   
-  // First pass: Position parent nodes
+  // Build the tree structure by identifying children for each node
+  data.forEach(node => {
+    if (node.parent_id && nodesById[node.parent_id]) {
+      nodesById[node.parent_id].children.push(node.id);
+    }
+  });
+  
+  // Constants for spacing
   const spacingX = 250;  // Horizontal spacing between siblings
   const spacingYBase = 150;  // Vertical spacing between ranks
-  const baseX = 600;  // Center X position
-  const nodePositions = {};
+  const baseX = 600;  // Root X position
   
-  // Store node positions by their ID
-  data.forEach((node) => {
-    const rank = node.rank || 0;
-    let xPos = baseX;
-    let yPos = rank * spacingYBase;
+  // Function to calculate subtree width
+  const calculateSubtreeWidth = (nodeId) => {
+    const node = nodesById[nodeId];
+    if (!node.children.length) return spacingX; // Leaf node width
     
-    nodePositions[node.id] = { x: xPos, y: yPos };
+    // Sum the widths of all children subtrees
+    return node.children.reduce((sum, childId) => sum + calculateSubtreeWidth(childId), 0);
+  };
+  
+  // First pass: Calculate horizontal positions in a bottom-up approach
+  const calculateXPosition = (nodeId, leftBoundary) => {
+    const node = nodesById[nodeId];
+    
+    if (!node.children.length) {
+      // Leaf node - position at the given boundary
+      node.xPos = leftBoundary + spacingX / 2;
+      return node.xPos;
+    }
+    
+    let currentX = leftBoundary;
+    const childPositions = [];
+    
+    // Position all children first
+    node.children.forEach(childId => {
+      const childWidth = calculateSubtreeWidth(childId);
+      const childCenter = calculateXPosition(childId, currentX);
+      childPositions.push(childCenter);
+      currentX += childWidth;
+    });
+    
+    // Position parent centered over its children
+    if (childPositions.length) {
+      const firstChild = childPositions[0];
+      const lastChild = childPositions[childPositions.length - 1];
+      node.xPos = (firstChild + lastChild) / 2;
+    } else {
+      node.xPos = leftBoundary + spacingX / 2;
+    }
+    
+    return node.xPos;
+  };
+  
+  // Start positioning from the root(s)
+  const rootNodes = data.filter(node => !node.parent_id || !nodesById[node.parent_id]);
+  let currentX = baseX - (calculateSubtreeWidth(rootNodes[0]?.id || 0) / 2);
+  
+  rootNodes.forEach(rootNode => {
+    const rootWidth = calculateSubtreeWidth(rootNode.id);
+    calculateXPosition(rootNode.id, currentX);
+    currentX += rootWidth;
   });
   
-  // Second pass: Adjust sibling positions based on parent position
-  data.forEach((node) => {
-    // Skip nodes without a parent (root nodes)
-    if (!node.parent_id) return;
-    
-    // Get siblings (nodes with the same parent)
-    const siblings = data.filter(n => n.parent_id === node.parent_id);
-    
-    if (siblings.length > 1) {
-      // Get parent position
-      const parentPos = nodePositions[node.parent_id];
-      if (!parentPos) return;
-      
-      // Position siblings centered around their parent
-      const siblingIndex = siblings.findIndex(s => s.id === node.id);
-      const totalWidth = (siblings.length - 1) * spacingX;
-      
-      // Center siblings around parent, not around base position
-      const startX = parentPos.x - totalWidth / 2;
-      nodePositions[node.id].x = startX + siblingIndex * spacingX;
-    }
+  // Set vertical positions based on rank
+  data.forEach(node => {
+    const rank = node.rank || 0;
+    nodesById[node.id].yPos = rank * spacingYBase;
   });
   
   // Create final node objects for Vue Flow
   return data.map(node => {
+    const nodeData = nodesById[node.id];
     const stringNodeId = String(node.id);
-    const pos = nodePositions[node.id] || { x: baseX, y: (node.rank || 0) * spacingYBase };
     const isHighlighted = highlightedNode.value === stringNodeId;
     
     return {
       id: stringNodeId,
-      position: { x: pos.x, y: pos.y },
+      position: { 
+        x: nodeData.xPos || baseX, 
+        y: nodeData.yPos || 0 
+      },
       data: { label: `${node.name} - ${node.company_name}` },
       draggable: false,
       style: {

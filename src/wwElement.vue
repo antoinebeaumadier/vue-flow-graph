@@ -121,8 +121,8 @@ const calculateNodePositions = (data) => {
       style: {
         backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
         color: "#fff",
-        padding: "15px",
-        borderRadius: "8px",
+        padding: "8px",
+        borderRadius: "4px",
         textAlign: "center",
         border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
         cursor: "pointer",
@@ -407,7 +407,7 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
     margin-top: 4px;
     
     .country-flag {
-      font-size: 16px;
+      font-size: 20px;
       font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
     }
   }

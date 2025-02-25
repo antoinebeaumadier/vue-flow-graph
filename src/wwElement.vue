@@ -108,11 +108,14 @@ const calculateNodePositions = (data) => {
         x: nodeData.xPos || baseX, 
         y: nodeData.yPos || 0 
       },
-      // Use a structured node data format with product name, company name, and country ISO
+      // Use a structured node data format with product name, company name, and country ISO array
       data: { 
         productName: node.name, 
         companyName: node.company_name,
-        countryIso: node.country_iso || null // Assuming this field exists in your data
+        // Handle both array and single value formats for country codes
+        countryCodes: Array.isArray(node.country_iso) 
+          ? node.country_iso 
+          : (node.country_iso ? [node.country_iso] : [])
       },
       draggable: false,
       style: {
@@ -327,7 +330,15 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
         <div class="custom-node">
           <div class="product-name">{{ data.productName }}</div>
           <div class="company-name">{{ data.companyName }}</div>
-          <div v-if="data.countryIso" class="country-flag">{{ getCountryFlag(data.countryIso) }}</div>
+          <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+            <span 
+              v-for="(code, index) in data.countryCodes" 
+              :key="index" 
+              class="country-flag"
+              :title="code.toUpperCase()">
+              {{ getCountryFlag(code) }}
+            </span>
+          </div>
         </div>
       </template>
     </VueFlow>
@@ -366,12 +377,19 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
   .company-name {
     font-size: 12px;
     font-weight: 400;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
   }
   
-  .country-flag {
-    font-size: 18px;
+  .country-flags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
     margin-top: 4px;
+    
+    .country-flag {
+      font-size: 16px;
+    }
   }
 }
 </style>

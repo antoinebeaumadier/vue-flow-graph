@@ -27,49 +27,53 @@ const calculateNodePositions = (data) => {
     nodesByRank[rank].push(node);
   });
   
-  // Group nodes by parent for sibling relationships
-  const groupedNodes = {};
-  data.forEach((node) => {
-    if (!groupedNodes[node.parent_id]) {
-      groupedNodes[node.parent_id] = [];
-    }
-    groupedNodes[node.parent_id].push(node);
-  });
-  
-  // Calculate positions with more intelligent spacing
+  // First pass: Position parent nodes
   const spacingX = 250;  // Horizontal spacing between siblings
   const spacingYBase = 150;  // Vertical spacing between ranks
   const baseX = 600;  // Center X position
+  const nodePositions = {};
   
-  return data.map((node) => {
+  // Store node positions by their ID
+  data.forEach((node) => {
     const rank = node.rank || 0;
     let xPos = baseX;
     let yPos = rank * spacingYBase;
     
-    // Position siblings horizontally centered around their parent
-    if (groupedNodes[node.parent_id]?.length > 1) {
-      const siblings = groupedNodes[node.parent_id];
-      const siblingIndex = siblings.findIndex((sibling) => sibling.id === node.id);
+    nodePositions[node.id] = { x: xPos, y: yPos };
+  });
+  
+  // Second pass: Adjust sibling positions based on parent position
+  data.forEach((node) => {
+    // Skip nodes without a parent (root nodes)
+    if (!node.parent_id) return;
+    
+    // Get siblings (nodes with the same parent)
+    const siblings = data.filter(n => n.parent_id === node.parent_id);
+    
+    if (siblings.length > 1) {
+      // Get parent position
+      const parentPos = nodePositions[node.parent_id];
+      if (!parentPos) return;
+      
+      // Position siblings centered around their parent
+      const siblingIndex = siblings.findIndex(s => s.id === node.id);
       const totalWidth = (siblings.length - 1) * spacingX;
       
-      // Center the sibling group
-      xPos = baseX + siblingIndex * spacingX - (totalWidth / 2);
-    } else {
-      // For ranks with multiple non-sibling nodes, distribute them evenly
-      const nodesInRank = nodesByRank[rank] || [];
-      if (nodesInRank.length > 1) {
-        const nodeIndex = nodesInRank.findIndex(n => n.id === node.id);
-        const totalWidth = (nodesInRank.length - 1) * spacingX;
-        xPos = baseX + nodeIndex * spacingX - (totalWidth / 2);
-      }
+      // Center siblings around parent, not around base position
+      const startX = parentPos.x - totalWidth / 2;
+      nodePositions[node.id].x = startX + siblingIndex * spacingX;
     }
-    
+  });
+  
+  // Create final node objects for Vue Flow
+  return data.map(node => {
     const stringNodeId = String(node.id);
+    const pos = nodePositions[node.id] || { x: baseX, y: (node.rank || 0) * spacingYBase };
     const isHighlighted = highlightedNode.value === stringNodeId;
     
     return {
       id: stringNodeId,
-      position: { x: xPos, y: yPos },
+      position: { x: pos.x, y: pos.y },
       data: { label: `${node.name} - ${node.company_name}` },
       draggable: false,
       style: {

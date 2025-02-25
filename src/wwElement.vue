@@ -292,10 +292,21 @@ onMounted(() => {
   }, 300);
   
   // Add Nunito font to document if needed
-  const fontLink = document.createElement('link');
-  fontLink.rel = 'stylesheet';
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap';
-  document.head.appendChild(fontLink);
+  const nunitoFont = document.createElement('link');
+  nunitoFont.rel = 'stylesheet';
+  nunitoFont.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap';
+  document.head.appendChild(nunitoFont);
+  
+  // Add Noto Color Emoji font for flags
+  const emojiFontStyle = document.createElement('style');
+  emojiFontStyle.textContent = `
+    @font-face {
+      font-family: 'NotoColorEmoji';
+      src: url('https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/fonts/NotoColorEmoji.ttf') format('truetype');
+      font-display: swap;
+    }
+  `;
+  document.head.appendChild(emojiFontStyle);
 });
 
 // Re-center when nodes change
@@ -345,9 +356,17 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
   </div>
 </template>
 
-<style lang="scss" scoped>
+<style lang="scss">
 @import '@vue-flow/core/dist/style.css';
 @import '@vue-flow/core/dist/theme-default.css';
+
+/* Flag emoji specific font-face for better cross-platform support */
+@font-face {
+  font-family: 'NotoColorEmoji';
+  src: url('https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/fonts/NotoColorEmoji.ttf') format('truetype');
+  unicode-range: U+1F1E6-1F1FF; /* Range for country flag emojis */
+  font-display: swap;
+}
 
 .my-section {
   display: flex;
@@ -389,6 +408,7 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
     
     .country-flag {
       font-size: 16px;
+      font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
     }
   }
 }

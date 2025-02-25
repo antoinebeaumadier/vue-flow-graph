@@ -101,23 +101,34 @@ const calculateNodePositions = (data) => {
     const stringNodeId = String(node.id);
     const isHighlighted = highlightedNode.value === stringNodeId;
     
+    // Create the node with HTML content for structured layout
     return {
       id: stringNodeId,
       position: { 
         x: nodeData.xPos || baseX, 
         y: nodeData.yPos || 0 
       },
-      data: { label: `${node.name} - ${node.company_name}` },
+      // Use a structured node data format with product name, company name, and country ISO
+      data: { 
+        productName: node.name, 
+        companyName: node.company_name,
+        countryIso: node.country_iso || null // Assuming this field exists in your data
+      },
       draggable: false,
       style: {
         backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
         color: "#fff",
-        padding: "10px",
+        padding: "15px",
         borderRadius: "8px",
         textAlign: "center",
         border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
         cursor: "pointer",
+        width: "200px",
+        fontFamily: "Nunito, sans-serif",
+        fontWeight: "500"
       },
+      // Use custom node with HTML template
+      type: "customNode",
     };
   });
 };
@@ -145,10 +156,13 @@ const updateHighlighting = (nodeId) => {
         backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
         border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
         color: "#fff",
-        padding: "10px",
+        padding: "15px",
         borderRadius: "8px",
         textAlign: "center",
         cursor: "pointer",
+        width: "200px",
+        fontFamily: "Nunito, sans-serif",
+        fontWeight: "500"
       },
     };
   });
@@ -193,7 +207,7 @@ watchEffect(() => {
   }
 
   edges.value = props.content.data.flatMap((item) =>
-    item.child_variant_ids.map((childId) => {
+    item.child_variant_ids?.map((childId) => {
       const stringItemId = String(item.id);
       const stringChildId = String(childId);
       const isHighlighted = highlightedNode.value === stringItemId || highlightedNode.value === stringChildId;
@@ -208,7 +222,7 @@ watchEffect(() => {
           strokeWidth: isHighlighted ? 3 : 1.5,
         },
       };
-    })
+    }) || []
   );
 });
 
@@ -248,6 +262,18 @@ watch(() => props.content.selectedInWeWeb, (newSelectedId) => {
   updateHighlighting(newSelectedId);
 });
 
+// Get flag emoji from ISO code
+const getCountryFlag = (isoCode) => {
+  if (!isoCode) return '';
+  
+  // Convert ISO code to regional indicator symbols
+  // Each letter in the ISO code is converted to a regional indicator symbol (A-Z)
+  // by adding 127397 to its UTF-16 code point value
+  return Array.from(isoCode.toUpperCase())
+    .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+    .join('');
+};
+
 // Center the view on component mount
 onMounted(() => {
   // Allow a short delay for the graph to render first
@@ -261,6 +287,12 @@ onMounted(() => {
       });
     }
   }, 300);
+  
+  // Add Nunito font to document if needed
+  const fontLink = document.createElement('link');
+  fontLink.rel = 'stylesheet';
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap';
+  document.head.appendChild(fontLink);
 });
 
 // Re-center when nodes change
@@ -289,6 +321,15 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
       :edgesFocusable="false"
       :edgesDraggable="false"
       :nodesConnectable="false">
+      
+      <!-- Custom Node Template -->
+      <template #node-customNode="{ data }">
+        <div class="custom-node">
+          <div class="product-name">{{ data.productName }}</div>
+          <div class="company-name">{{ data.companyName }}</div>
+          <div v-if="data.countryIso" class="country-flag">{{ getCountryFlag(data.countryIso) }}</div>
+        </div>
+      </template>
     </VueFlow>
   </div>
 </template>
@@ -307,5 +348,30 @@ watch(() => nodes.value.length, (newLength, oldLength) => {
 .org-chart-container {
   height: 600px;
   width: 100%;
+  font-family: 'Nunito', sans-serif;
+}
+
+.custom-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  
+  .product-name {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  
+  .company-name {
+    font-size: 12px;
+    font-weight: 400;
+    margin-bottom: 4px;
+  }
+  
+  .country-flag {
+    font-size: 18px;
+    margin-top: 4px;
+  }
 }
 </style>

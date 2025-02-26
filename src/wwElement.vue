@@ -1,6 +1,6 @@
 <script setup>
 import { ref, defineProps, computed, watch, watchEffect, onMounted, nextTick } from 'vue';
-import { VueFlow, useVueFlow, Panel } from '@vue-flow/core';
+import { VueFlow, useVueFlow, Panel, addNodeType } from '@vue-flow/core';
 
 const props = defineProps({
   content: { type: Object, required: true },
@@ -18,6 +18,130 @@ const edges = ref([]);
 const lcaNodes = ref([]);
 const lcaEdges = ref([]);
 
+// ========== Register custom node types ==========
+// This needs to happen before the component is mounted
+onMounted(() => {
+  // Register custom node types
+  addNodeType('treeNode', {
+    template: `
+      <div class="custom-node tree-node">
+        <div class="product-name">{{ data.productName }}</div>
+        <div class="company-name">{{ data.companyName }}</div>
+        <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+          <span 
+            v-for="(code, index) in data.countryCodes" 
+            :key="index" 
+            class="country-flag"
+            :title="code.toUpperCase()">
+            {{ getCountryFlag(code) }}
+          </span>
+        </div>
+        <div class="node-controls">
+          <button 
+            class="omit-button" 
+            :class="{ omitted: data.isOmitted }"
+            @click.stop="$emit('node:omit', id)">
+            {{ data.isOmitted ? 'Include' : 'Omit' }}
+          </button>
+        </div>
+      </div>
+    `,
+    setup(props) {
+      const getCountryFlag = (isoCode) => {
+        if (!isoCode) return '';
+        try {
+          return Array.from(isoCode.toUpperCase())
+            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+            .join('');
+        } catch (error) {
+          console.error("Error generating flag:", error);
+          return '';
+        }
+      };
+      
+      return { getCountryFlag };
+    }
+  });
+  
+  addNodeType('lcaNode', {
+    template: `
+      <div class="custom-node lca-node">
+        <div class="product-name">{{ data.productName }}</div>
+        <div class="company-name">{{ data.companyName }}</div>
+        <div class="percentage" v-if="data.percentage !== undefined">{{ data.percentage }}%</div>
+        <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+          <span 
+            v-for="(code, index) in data.countryCodes" 
+            :key="index" 
+            class="country-flag"
+            :title="code.toUpperCase()">
+            {{ getCountryFlag(code) }}
+          </span>
+        </div>
+        <div class="node-controls">
+          <button 
+            class="omit-button" 
+            :class="{ omitted: data.isOmitted }"
+            @click.stop="$emit('node:omit', id)">
+            {{ data.isOmitted ? 'Include' : 'Omit' }}
+          </button>
+        </div>
+      </div>
+    `,
+    setup(props) {
+      const getCountryFlag = (isoCode) => {
+        if (!isoCode) return '';
+        try {
+          return Array.from(isoCode.toUpperCase())
+            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+            .join('');
+        } catch (error) {
+          console.error("Error generating flag:", error);
+          return '';
+        }
+      };
+      
+      return { getCountryFlag };
+    }
+  });
+
+  // Register onConnect handler
+  onConnect(handleConnect);
+  
+  // Initialize omittedNodes if it exists in content
+  if (Array.isArray(props.content.omittedNodes)) {
+    omittedNodeIds.value = props.content.omittedNodes.map(String);
+  }
+  
+  // Allow a short delay for the graph to render first
+  setTimeout(() => {
+    if (nodes.value.length > 0 || lcaNodes.value.length > 0) {
+      fitView({ 
+        padding: 0.5,
+        includeHiddenNodes: false,
+        duration: 800
+      });
+    }
+  }, 300);
+  
+  // Add Nunito font to document if needed
+  const nunitoFont = document.createElement('link');
+  nunitoFont.rel = 'stylesheet';
+  nunitoFont.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap';
+  document.head.appendChild(nunitoFont);
+  
+  // Add Noto Color Emoji font for flags
+  const emojiFontStyle = document.createElement('style');
+  emojiFontStyle.textContent = `
+    @font-face {
+      font-family: 'NotoColorEmoji';
+      src: url('https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/fonts/NotoColorEmoji.ttf') format('truetype');
+      font-display: swap;
+    }
+  `;
+  document.head.appendChild(emojiFontStyle);
+});
+
 // ========== LCA Structure Processing ==========
 
 // Process LCA structure data into nodes and edges
@@ -27,90 +151,95 @@ const processLCAStructure = (lcaData) => {
     return { nodes: [], edges: [] };
   }
 
-  // Sort by rank (descending) to ensure proper processing
-  const sortedData = [...lcaData].sort((a, b) => a.rank - b.rank);
-  
-  // Create nodes from LCA data
-  const lcaNodes = sortedData.map((item, index) => {
-    const nodeId = `lca-${item.nomenclature_process_id || index}`;
+  try {
+    // Sort by rank (descending) to ensure proper processing
+    const sortedData = [...lcaData].sort((a, b) => a.rank - b.rank);
     
-    return {
-      id: nodeId,
-      type: 'lcaNode',
-      position: { x: 0, y: 0 }, // Will be calculated later
-      data: {
-        ...item,
-        productName: item.nomenclature_process?.name || `Process ${index + 1}`,
-        companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
-        countryCodes: item.country ? [item.country] : [],
-        percentage: item.percentage || 100,
-        isOmitted: false
-      },
-      draggable: true,
-      connectable: true
-    };
-  });
+    // Create nodes from LCA data
+    const lcaNodes = sortedData.map((item, index) => {
+      const nodeId = `lca-${item.nomenclature_process_id || index}`;
+      
+      return {
+        id: nodeId,
+        type: 'lcaNode',
+        position: { x: 0, y: 0 }, // Will be calculated later
+        data: {
+          ...item,
+          productName: item.nomenclature_process?.name || `Process ${index + 1}`,
+          companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
+          countryCodes: item.country ? [item.country] : [],
+          percentage: item.percentage || 100,
+          isOmitted: false
+        },
+        draggable: true,
+        connectable: true
+      };
+    });
 
-  // Create edges based on rank relationships
-  const lcaEdges = [];
-  const nodesByRank = {};
-  
-  // Group nodes by rank
-  sortedData.forEach((item, index) => {
-    const rank = item.rank;
-    if (!nodesByRank[rank]) {
-      nodesByRank[rank] = [];
-    }
-    nodesByRank[rank].push(`lca-${item.nomenclature_process_id || index}`);
-  });
-  
-  // Create rank numbers array and sort them
-  const ranks = Object.keys(nodesByRank).map(Number).sort((a, b) => a - b);
-  
-  // Connect nodes between consecutive ranks
-  for (let i = 0; i < ranks.length - 1; i++) {
-    const currentRank = ranks[i];
-    const nextRank = ranks[i + 1];
+    // Create edges based on rank relationships
+    const lcaEdges = [];
+    const nodesByRank = {};
     
-    // Connect each node in the current rank to each node in the next rank
-    nodesByRank[currentRank].forEach(sourceId => {
-      nodesByRank[nextRank].forEach(targetId => {
-        lcaEdges.push({
-          id: `e-${sourceId}-${targetId}`,
-          source: sourceId,
-          target: targetId,
-          animated: false,
-          style: {
-            stroke: props.content.edgeColor || '#000',
-            strokeWidth: 1.5,
-          },
+    // Group nodes by rank
+    sortedData.forEach((item, index) => {
+      const rank = item.rank;
+      if (!nodesByRank[rank]) {
+        nodesByRank[rank] = [];
+      }
+      nodesByRank[rank].push(`lca-${item.nomenclature_process_id || index}`);
+    });
+    
+    // Create rank numbers array and sort them
+    const ranks = Object.keys(nodesByRank).map(Number).sort((a, b) => a - b);
+    
+    // Connect nodes between consecutive ranks
+    for (let i = 0; i < ranks.length - 1; i++) {
+      const currentRank = ranks[i];
+      const nextRank = ranks[i + 1];
+      
+      // Connect each node in the current rank to each node in the next rank
+      nodesByRank[currentRank].forEach(sourceId => {
+        nodesByRank[nextRank].forEach(targetId => {
+          lcaEdges.push({
+            id: `e-${sourceId}-${targetId}`,
+            source: sourceId,
+            target: targetId,
+            animated: false,
+            style: {
+              stroke: props.content.edgeColor || '#000',
+              strokeWidth: 1.5,
+            },
+          });
         });
       });
-    });
-  }
+    }
 
-  // Position the nodes based on rank and number of nodes in each rank
-  const spacingX = 250;
-  const spacingY = 150;
-  const startY = 100;
-  
-  ranks.forEach((rank, rankIndex) => {
-    const nodesInRank = nodesByRank[rank];
-    const rankWidth = nodesInRank.length * spacingX;
-    const startX = 1200 - (rankWidth / 2);
+    // Position the nodes based on rank and number of nodes in each rank
+    const spacingX = 250;
+    const spacingY = 150;
+    const startY = 100;
     
-    nodesInRank.forEach((nodeId, nodeIndex) => {
-      const node = lcaNodes.find(n => n.id === nodeId);
-      if (node) {
-        node.position = {
-          x: startX + (nodeIndex * spacingX),
-          y: startY + (rankIndex * spacingY)
-        };
-      }
+    ranks.forEach((rank, rankIndex) => {
+      const nodesInRank = nodesByRank[rank];
+      const rankWidth = nodesInRank.length * spacingX;
+      const startX = 1200 - (rankWidth / 2);
+      
+      nodesInRank.forEach((nodeId, nodeIndex) => {
+        const node = lcaNodes.find(n => n.id === nodeId);
+        if (node) {
+          node.position = {
+            x: startX + (nodeIndex * spacingX),
+            y: startY + (rankIndex * spacingY)
+          };
+        }
+      });
     });
-  });
 
-  return { nodes: lcaNodes, edges: lcaEdges };
+    return { nodes: lcaNodes, edges: lcaEdges };
+  } catch (error) {
+    console.error("Error processing LCA structure:", error);
+    return { nodes: [], edges: [] };
+  }
 };
 
 // ========== Original Tree Positioning ==========
@@ -119,125 +248,137 @@ const processLCAStructure = (lcaData) => {
 const calculateNodePositions = (data) => {
   if (!data || !Array.isArray(data) || data.length === 0) return [];
   
-  // Create a map of nodes by ID for easier access
-  const nodesById = {};
-  data.forEach(node => {
-    nodesById[node.id] = { ...node, children: [] };
-  });
-  
-  // Build the tree structure by identifying children for each node
-  data.forEach(node => {
-    if (node.parent_id && nodesById[node.parent_id]) {
-      nodesById[node.parent_id].children.push(node.id);
-    }
-  });
-  
-  // Constants for spacing
-  const spacingX = 250;  // Horizontal spacing between siblings
-  const spacingYBase = 150;  // Vertical spacing between ranks
-  const baseX = 300;  // Root X position
-  
-  // Function to calculate subtree width
-  const calculateSubtreeWidth = (nodeId) => {
-    const node = nodesById[nodeId];
-    if (!node.children.length) return spacingX; // Leaf node width
-    
-    // Sum the widths of all children subtrees
-    return node.children.reduce((sum, childId) => sum + calculateSubtreeWidth(childId), 0);
-  };
-  
-  // First pass: Calculate horizontal positions in a bottom-up approach
-  const calculateXPosition = (nodeId, leftBoundary) => {
-    const node = nodesById[nodeId];
-    
-    if (!node.children.length) {
-      // Leaf node - position at the given boundary
-      node.xPos = leftBoundary + spacingX / 2;
-      return node.xPos;
-    }
-    
-    let currentX = leftBoundary;
-    const childPositions = [];
-    
-    // Position all children first
-    node.children.forEach(childId => {
-      const childWidth = calculateSubtreeWidth(childId);
-      const childCenter = calculateXPosition(childId, currentX);
-      childPositions.push(childCenter);
-      currentX += childWidth;
+  try {
+    // Create a map of nodes by ID for easier access
+    const nodesById = {};
+    data.forEach(node => {
+      nodesById[node.id] = { ...node, children: [] };
     });
     
-    // Position parent centered over its children
-    if (childPositions.length) {
-      const firstChild = childPositions[0];
-      const lastChild = childPositions[childPositions.length - 1];
-      node.xPos = (firstChild + lastChild) / 2;
-    } else {
-      node.xPos = leftBoundary + spacingX / 2;
+    // Build the tree structure by identifying children for each node
+    data.forEach(node => {
+      if (node.parent_id && nodesById[node.parent_id]) {
+        nodesById[node.parent_id].children.push(node.id);
+      }
+    });
+    
+    // Constants for spacing
+    const spacingX = 250;  // Horizontal spacing between siblings
+    const spacingYBase = 150;  // Vertical spacing between ranks
+    const baseX = 300;  // Root X position
+    
+    // Function to calculate subtree width
+    const calculateSubtreeWidth = (nodeId) => {
+      const node = nodesById[nodeId];
+      if (!node || !node.children.length) return spacingX; // Leaf node width
+      
+      // Sum the widths of all children subtrees
+      return node.children.reduce((sum, childId) => sum + calculateSubtreeWidth(childId), 0);
+    };
+    
+    // First pass: Calculate horizontal positions in a bottom-up approach
+    const calculateXPosition = (nodeId, leftBoundary) => {
+      const node = nodesById[nodeId];
+      if (!node) return leftBoundary + spacingX / 2;
+      
+      if (!node.children.length) {
+        // Leaf node - position at the given boundary
+        node.xPos = leftBoundary + spacingX / 2;
+        return node.xPos;
+      }
+      
+      let currentX = leftBoundary;
+      const childPositions = [];
+      
+      // Position all children first
+      node.children.forEach(childId => {
+        const childWidth = calculateSubtreeWidth(childId);
+        const childCenter = calculateXPosition(childId, currentX);
+        childPositions.push(childCenter);
+        currentX += childWidth;
+      });
+      
+      // Position parent centered over its children
+      if (childPositions.length) {
+        const firstChild = childPositions[0];
+        const lastChild = childPositions[childPositions.length - 1];
+        node.xPos = (firstChild + lastChild) / 2;
+      } else {
+        node.xPos = leftBoundary + spacingX / 2;
+      }
+      
+      return node.xPos;
+    };
+    
+    // Start positioning from the root(s)
+    const rootNodes = data.filter(node => !node.parent_id || !nodesById[node.parent_id]);
+    let currentX = baseX;
+    
+    if (rootNodes.length > 0) {
+      currentX = baseX - (calculateSubtreeWidth(rootNodes[0]?.id || 0) / 2);
+      
+      rootNodes.forEach(rootNode => {
+        const rootWidth = calculateSubtreeWidth(rootNode.id);
+        calculateXPosition(rootNode.id, currentX);
+        currentX += rootWidth;
+      });
     }
     
-    return node.xPos;
-  };
-  
-  // Start positioning from the root(s)
-  const rootNodes = data.filter(node => !node.parent_id || !nodesById[node.parent_id]);
-  let currentX = baseX - (calculateSubtreeWidth(rootNodes[0]?.id || 0) / 2);
-  
-  rootNodes.forEach(rootNode => {
-    const rootWidth = calculateSubtreeWidth(rootNode.id);
-    calculateXPosition(rootNode.id, currentX);
-    currentX += rootWidth;
-  });
-  
-  // Set vertical positions based on rank
-  data.forEach(node => {
-    const rank = node.rank || 0;
-    nodesById[node.id].yPos = rank * spacingYBase;
-  });
-  
-  // Create final node objects for Vue Flow
-  return data.map(node => {
-    const nodeData = nodesById[node.id];
-    const stringNodeId = String(node.id);
-    const isHighlighted = highlightedNode.value === stringNodeId;
-    const isOmitted = omittedNodeIds.value.includes(stringNodeId);
+    // Set vertical positions based on rank
+    data.forEach(node => {
+      const rank = node.rank || 0;
+      if (nodesById[node.id]) {
+        nodesById[node.id].yPos = rank * spacingYBase;
+      }
+    });
     
-    // Create the node with HTML content for structured layout
-    return {
-      id: stringNodeId,
-      position: { 
-        x: nodeData.xPos || baseX, 
-        y: nodeData.yPos || 0 
-      },
-      // Use a structured node data format with product name, company name, and country ISO array
-      data: { 
-        productName: node.name, 
-        companyName: node.company_name,
-        // Handle both array and single value formats for country codes
-        countryCodes: Array.isArray(node.country_iso) 
-          ? node.country_iso 
-          : (node.country_iso ? [node.country_iso] : []),
-        isOmitted: isOmitted
-      },
-      draggable: true,
-      connectable: true,
-      style: {
-        backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
+    // Create final node objects for Vue Flow
+    return data.map(node => {
+      const nodeData = nodesById[node.id] || {};
+      const stringNodeId = String(node.id);
+      const isHighlighted = highlightedNode.value === stringNodeId;
+      const isOmitted = omittedNodeIds.value.includes(stringNodeId);
+      
+      // Create the node with HTML content for structured layout
+      return {
+        id: stringNodeId,
+        position: { 
+          x: nodeData.xPos || baseX, 
+          y: nodeData.yPos || 0 
+        },
+        // Use a structured node data format with product name, company name, and country ISO array
+        data: { 
+          productName: node.name || "Unnamed Product", 
+          companyName: node.company_name || "Unknown Company",
+          // Handle both array and single value formats for country codes
+          countryCodes: Array.isArray(node.country_iso) 
+            ? node.country_iso 
+            : (node.country_iso ? [node.country_iso] : []),
+          isOmitted: isOmitted
+        },
+        draggable: true,
+        connectable: true,
+        style: {
+          backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
                          isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-        color: "#fff",
-        padding: "8px",
-        borderRadius: "4px",
-        textAlign: "center",
-        border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
-        cursor: "pointer",
-        width: "200px",
-        fontFamily: "Nunito, sans-serif",
-        fontWeight: "500"
-      },
-      // Use custom node with HTML template
-      type: "treeNode",
-    };
-  });
+          color: "#fff",
+          padding: "8px",
+          borderRadius: "4px",
+          textAlign: "center",
+          border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+          cursor: "pointer",
+          width: "200px",
+          fontFamily: "Nunito, sans-serif",
+          fontWeight: "500"
+        },
+        // Use custom node with HTML template
+        type: "treeNode",
+      };
+    });
+  } catch (error) {
+    console.error("Error calculating node positions:", error);
+    return [];
+  }
 };
 
 // ========== Helper Functions ==========
@@ -353,6 +494,7 @@ const updateAllEdges = () => {
 
 // Recursive function to get all child node IDs
 const getAllChildNodeIds = (nodeId) => {
+  if (!nodeId) return [];
   const children = [];
   
   // Find direct children
@@ -373,6 +515,7 @@ const getAllChildNodeIds = (nodeId) => {
 
 // Toggle omit status for a node and its children
 const toggleOmitStatus = (nodeId) => {
+  if (!nodeId) return;
   const isCurrentlyOmitted = omittedNodeIds.value.includes(nodeId);
   let updatedOmittedNodes = [...omittedNodeIds.value];
   
@@ -422,12 +565,17 @@ const toggleOmitStatus = (nodeId) => {
 const getCountryFlag = (isoCode) => {
   if (!isoCode) return '';
   
-  // Convert ISO code to regional indicator symbols
-  // Each letter in the ISO code is converted to a regional indicator symbol (A-Z)
-  // by adding 127397 to its UTF-16 code point value
-  return Array.from(isoCode.toUpperCase())
-    .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
-    .join('');
+  try {
+    // Convert ISO code to regional indicator symbols
+    // Each letter in the ISO code is converted to a regional indicator symbol (A-Z)
+    // by adding 127397 to its UTF-16 code point value
+    return Array.from(isoCode.toUpperCase())
+      .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+      .join('');
+  } catch (error) {
+    console.error("Error generating flag:", error);
+    return '';
+  }
 };
 
 // ========== Event Handlers ==========
@@ -457,6 +605,13 @@ const handleNodeClick = (event) => {
       nodeId: nodeId
     }
   });
+};
+
+// Handle Node Omit (from custom node event)
+const handleNodeOmit = (nodeId) => {
+  if (nodeId) {
+    toggleOmitStatus(nodeId);
+  }
 };
 
 // Handle Node Connection
@@ -496,8 +651,12 @@ watchEffect(() => {
     return;
   }
 
-  edges.value = props.content.data.flatMap((item) =>
-    item.child_variant_ids?.map((childId) => {
+  edges.value = props.content.data.flatMap((item) => {
+    if (!item.child_variant_ids || !Array.isArray(item.child_variant_ids)) {
+      return [];
+    }
+    
+    return item.child_variant_ids.map((childId) => {
       const stringItemId = String(item.id);
       const stringChildId = String(childId);
       const isHighlighted = highlightedNode.value === stringItemId || highlightedNode.value === stringChildId;
@@ -517,8 +676,8 @@ watchEffect(() => {
           opacity: isOmitted ? 0.5 : 1
         },
       };
-    }) || []
-  );
+    });
+  });
 });
 
 // Process LCA Structure Data
@@ -563,44 +722,6 @@ watch(() => props.content.omittedNodes, (newOmittedNodes) => {
   }
 }, { immediate: true });
 
-// Register onConnect handler
-onMounted(() => {
-  onConnect(handleConnect);
-  
-  // Initialize omittedNodes if it exists in content
-  if (Array.isArray(props.content.omittedNodes)) {
-    omittedNodeIds.value = props.content.omittedNodes.map(String);
-  }
-  
-  // Allow a short delay for the graph to render first
-  setTimeout(() => {
-    if (nodes.value.length > 0 || lcaNodes.value.length > 0) {
-      fitView({ 
-        padding: 0.5,
-        includeHiddenNodes: false,
-        duration: 800
-      });
-    }
-  }, 300);
-  
-  // Add Nunito font to document if needed
-  const nunitoFont = document.createElement('link');
-  nunitoFont.rel = 'stylesheet';
-  nunitoFont.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap';
-  document.head.appendChild(nunitoFont);
-  
-  // Add Noto Color Emoji font for flags
-  const emojiFontStyle = document.createElement('style');
-  emojiFontStyle.textContent = `
-    @font-face {
-      font-family: 'NotoColorEmoji';
-      src: url('https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/fonts/NotoColorEmoji.ttf') format('truetype');
-      font-display: swap;
-    }
-  `;
-  document.head.appendChild(emojiFontStyle);
-});
-
 // Re-center when nodes change
 watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, newLcaLength], [oldTreeLength, oldLcaLength]) => {
   if (newTreeLength > 0 || newLcaLength > 0) {
@@ -622,6 +743,7 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
       :nodes="[...nodes, ...lcaNodes]" 
       :edges="[...edges, ...lcaEdges]" 
       @nodeClick="handleNodeClick"
+      @node:omit="handleNodeOmit"
       :nodesDraggable="true"
       :edgesUpdatable="false"
       :edgesFocusable="true"
@@ -638,57 +760,6 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
           </button>
         </div>
       </Panel>
-      
-      <!-- Tree Node Template -->
-      <template #node-treeNode="nodeProps">
-        <div class="custom-node tree-node">
-          <div class="product-name">{{ nodeProps.data.productName }}</div>
-          <div class="company-name">{{ nodeProps.data.companyName }}</div>
-          <div v-if="nodeProps.data.countryCodes && nodeProps.data.countryCodes.length > 0" class="country-flags">
-            <span 
-              v-for="(code, index) in nodeProps.data.countryCodes" 
-              :key="index" 
-              class="country-flag"
-              :title="code.toUpperCase()">
-              {{ getCountryFlag(code) }}
-            </span>
-          </div>
-          <div class="node-controls">
-            <button 
-              class="omit-button" 
-              :class="{ omitted: nodeProps.data.isOmitted }"
-              @click.stop="toggleOmitStatus(nodeProps.id)">
-              {{ nodeProps.data.isOmitted ? 'Include' : 'Omit' }}
-            </button>
-          </div>
-        </div>
-      </template>
-      
-      <!-- LCA Node Template -->
-      <template #node-lcaNode="nodeProps">
-        <div class="custom-node lca-node">
-          <div class="product-name">{{ nodeProps.data.productName }}</div>
-          <div class="company-name">{{ nodeProps.data.companyName }}</div>
-          <div class="percentage">{{ nodeProps.data.percentage }}%</div>
-          <div v-if="nodeProps.data.countryCodes && nodeProps.data.countryCodes.length > 0" class="country-flags">
-            <span 
-              v-for="(code, index) in nodeProps.data.countryCodes" 
-              :key="index" 
-              class="country-flag"
-              :title="code.toUpperCase()">
-              {{ getCountryFlag(code) }}
-            </span>
-          </div>
-          <div class="node-controls">
-            <button 
-              class="omit-button" 
-              :class="{ omitted: nodeProps.data.isOmitted }"
-              @click.stop="toggleOmitStatus(nodeProps.id)">
-              {{ nodeProps.data.isOmitted ? 'Include' : 'Omit' }}
-            </button>
-          </div>
-        </div>
-      </template>
     </VueFlow>
   </div>
 </template>
@@ -718,35 +789,107 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   font-family: 'Nunito', sans-serif;
 }
 
+/* Controls styling */
+.controls {
+  display: flex;
+  gap: 8px;
+  margin: 8px;
+}
+
+.control-button {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #f0f0f0;
+    border-color: #999;
+  }
+}
+
+/* Node controls styling */
+.node-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.omit-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  &.omitted {
+    background-color: rgba(255, 255, 255, 0.6);
+    color: #8B0000;
+  }
+}
+
+/* Custom node styling */
 .custom-node {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  min-width: 180px;
   width: 100%;
-  
-  .product-name {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-  
-  .company-name {
-    font-size: 12px;
-    font-weight: 400;
-    margin-bottom: 8px;
-  }
-  
-  .country-flags {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 5px;
-    margin-top: 4px;
-    
-    .country-flag {
-      font-size: 20px;
-      font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
-    }
-  }
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.product-name {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.company-name {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.percentage {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.country-flags {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.country-flag {
+  font-family: 'NotoColorEmoji', Apple Color Emoji, Segoe UI Emoji, sans-serif;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Tree node specific styling */
+.tree-node {
+  background-color: #3498db;
+  color: white;
+}
+
+/* LCA node specific styling */
+.lca-node {
+  background-color: #2c3e50;
+  color: white;
 }
 </style>

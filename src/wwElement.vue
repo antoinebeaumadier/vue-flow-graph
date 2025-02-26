@@ -21,85 +21,137 @@ const lcaEdges = ref([]);
 // Register custom node types
 onMounted(() => {
   addNodeType('treeNode', {
-  template: `
-    <div class="custom-node tree-node" style="z-index: 999; position: relative; transform: none !important;">
-      <div class="node-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.name }}</div>
-      <div class="company-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.companyName }}</div>
-      <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
-        <span 
-          v-for="(code, index) in data.countryCodes" 
-          :key="index" 
-          class="country-flag"
-          :title="code.toUpperCase()">
-          {{ getCountryFlag(code) }}
-        </span>
-      </div>
-      <div class="node-controls">
-        <button 
-          class="omit-button" 
-          :class="{ 'omitted': data.isOmitted }"
-          @click.stop="$emit('node:omit', id)">
-          {{ data.isOmitted ? 'Include' : 'Omit' }}
-        </button>
-      </div>
-    </div>
-  `,
-  setup(props) {
-    const getCountryFlag = (isoCode) => {
-      if (!isoCode) return '';
-      try {
-        return Array.from(isoCode.toUpperCase())
-          .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
-          .join('');
-      } catch (error) {
-        console.error("Error generating flag:", error);
-        return '';
-      }
-    };
-    return { getCountryFlag };
-  }
-});
+    template: `
+      <foreignObject width="200" height="150" :style="{zIndex: 1000}">
+        <div xmlns="http://www.w3.org/1999/xhtml"
+             style="background-color: #3498db; 
+                   color: white; 
+                   padding: 10px; 
+                   border-radius: 4px; 
+                   width: 100%; 
+                   height: 100%; 
+                   text-align: center;
+                   font-family: 'Nunito', sans-serif;
+                   box-sizing: border-box;
+                   display: flex;
+                   flex-direction: column;
+                   border: 2px solid black;">
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">
+            {{ data.name }}
+          </div>
+          <div style="font-size: 12px; margin-bottom: 4px;">
+            {{ data.companyName }}
+          </div>
+          <div v-if="data.countryCodes && data.countryCodes.length > 0" 
+               style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
+            <span v-for="(code, index) in data.countryCodes" 
+                  :key="index" 
+                  style="font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-size: 16px;"
+                  :title="code.toUpperCase()">
+              {{ getCountryFlag(code) }}
+            </span>
+          </div>
+          <div style="display: flex; justify-content: center; margin-top: 8px;">
+            <button style="background-color: rgba(255, 255, 255, 0.2); 
+                          border: 1px solid rgba(255, 255, 255, 0.4); 
+                          border-radius: 4px; 
+                          padding: 2px 6px; 
+                          color: white; 
+                          font-size: 11px; 
+                          cursor: pointer;"
+                    :style="data.isOmitted ? {backgroundColor: 'rgba(255, 255, 255, 0.6)', color: '#8B0000'} : {}"
+                    @click.stop="$emit('node:omit', id)">
+              {{ data.isOmitted ? 'Include' : 'Omit' }}
+            </button>
+          </div>
+        </div>
+      </foreignObject>
+    `,
+    setup(props) {
+      const getCountryFlag = (isoCode) => {
+        if (!isoCode) return '';
+        try {
+          return Array.from(isoCode.toUpperCase())
+            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+            .join('');
+        } catch (error) {
+          console.error("Error generating flag:", error);
+          return '';
+        }
+      };
+      return { getCountryFlag };
+    }
 
-addNodeType('lcaNode', {
-  template: `
-    <div class="custom-node lca-node" style="z-index: 999; position: relative;">
-      <div class="node-name" style="color: white; visibility: visible; opacity: 1;">{{ data.name }}</div>
-      <div class="company-name" style="color: white; visibility: visible; opacity: 1;">{{ data.companyName }}</div>
-      <div class="percentage" v-if="data.percentage !== undefined" style="color: white; visibility: visible; opacity: 1;">{{ data.percentage }}%</div>
-      <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
-        <span 
-          v-for="(code, index) in data.countryCodes" 
-          :key="index" 
-          class="country-flag"
-          :title="code.toUpperCase()">
-          {{ getCountryFlag(code) }}
-        </span>
-      </div>
-      <div class="node-controls">
-        <button 
-          class="omit-button" 
-          :class="{ 'omitted': data.isOmitted }"
-          @click.stop="$emit('node:omit', id)">
-          {{ data.isOmitted ? 'Include' : 'Omit' }}
-        </button>
-      </div>
-    </div>
-  `,
-  setup(props) {
-    const getCountryFlag = (isoCode) => {
-      if (!isoCode) return '';
-      try {
-        return Array.from(isoCode.toUpperCase())
-          .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
-          .join('');
-      } catch (error) {
-        console.error("Error generating flag:", error);
-        return '';
-      }
-    };
-    return { getCountryFlag };
-  }
-});
+    
+  });
+
+
+  addNodeType('lcaNode', {
+    template: `
+      <foreignObject width="200" height="150" :style="{zIndex: 1000}">
+        <div xmlns="http://www.w3.org/1999/xhtml"
+             style="background-color: #2c3e50; 
+                   color: white; 
+                   padding: 10px; 
+                   border-radius: 4px; 
+                   width: 100%; 
+                   height: 100%; 
+                   text-align: center;
+                   font-family: 'Nunito', sans-serif;
+                   box-sizing: border-box;
+                   display: flex;
+                   flex-direction: column;
+                   border: 2px solid black;">
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">
+            {{ data.name }}
+          </div>
+          <div style="font-size: 12px; margin-bottom: 4px;">
+            {{ data.companyName }}
+          </div>
+          <div v-if="data.percentage !== undefined" 
+               style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">
+            {{ data.percentage }}%
+          </div>
+          <div v-if="data.countryCodes && data.countryCodes.length > 0" 
+               style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
+            <span v-for="(code, index) in data.countryCodes" 
+                  :key="index" 
+                  style="font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-size: 16px;"
+                  :title="code.toUpperCase()">
+              {{ getCountryFlag(code) }}
+            </span>
+          </div>
+          <div style="display: flex; justify-content: center; margin-top: 8px;">
+            <button style="background-color: rgba(255, 255, 255, 0.2); 
+                          border: 1px solid rgba(255, 255, 255, 0.4); 
+                          border-radius: 4px; 
+                          padding: 2px 6px; 
+                          color: white; 
+                          font-size: 11px; 
+                          cursor: pointer;"
+                    :style="data.isOmitted ? {backgroundColor: 'rgba(255, 255, 255, 0.6)', color: '#8B0000'} : {}"
+                    @click.stop="$emit('node:omit', id)">
+              {{ data.isOmitted ? 'Include' : 'Omit' }}
+            </button>
+          </div>
+        </div>
+      </foreignObject>
+    `,
+    setup(props) {
+      const getCountryFlag = (isoCode) => {
+        if (!isoCode) return '';
+        try {
+          return Array.from(isoCode.toUpperCase())
+            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+            .join('');
+        } catch (error) {
+          console.error("Error generating flag:", error);
+          return '';
+        }
+      };
+      return { getCountryFlag };
+    }
+  });
 
 
   onConnect(handleConnect);
@@ -138,22 +190,25 @@ const processLCAStructure = (lcaData) => {
     const lcaNodes = sortedData.map((item, index) => {
       const nodeId = `lca-${item.nomenclature_process_id || index}`;
       return {
-        id: nodeId,
-        type: 'lcaNode',
-        position: { x: 0, y: 0 }, // Will be calculated later
-        data: {
-          name: item.nomenclature_process?.name_eng || `Process ${index + 1}`,
-          companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
-          countryCodes: item.country ? [item.country] : [],
-          percentage: item.percentage || 0,
-          isOmitted: false
-        },
-        draggable: true,
-        connectable: true, // Enable connections for LCA nodes
-        style: {
-          zIndex: 10
-        }
-      };
+  id: nodeId,
+  type: 'lcaNode',
+  position: { x: startX + (nodeIndex * spacingX), y: startY + ((maxRank - rank) * spacingY) },
+  data: {
+    name: item.nomenclature_process?.name_eng || `Process ${index + 1}`,
+    companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
+    countryCodes: item.country ? [item.country] : [],
+    percentage: item.percentage || 0,
+    isOmitted: false
+  },
+  draggable: true,
+  connectable: true,
+  width: 200, // Add explicit dimensions
+  height: 150, // Add explicit dimensions
+  style: {
+    zIndex: 10
+  }
+};
+
     });
 
     const lcaEdges = [];
@@ -315,21 +370,25 @@ const calculateNodePositions = (data) => {
   connectable: false,
   style: {
     backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
-                    isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
+                  isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
     color: "#fff",
     padding: "8px",
     borderRadius: "4px",
     textAlign: "center",
     border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
     cursor: "pointer",
-    width: "200px",
+    width: "200px", // Make sure width is set
+    height: "auto", // Allow height to adjust to content
     fontFamily: "Nunito, sans-serif",
     fontWeight: "500",
-    zIndex: 999,  // Increased z-index
-    position: "relative" // Ensure relative positioning
+    zIndex: 999,
+    position: "relative"
   },
+  width: 200, // Add explicit dimensions
+  height: 150, // Add explicit dimensions
   type: "treeNode",
 };
+
     });
   } catch (error) {
     console.error("Error calculating node positions:", error);
@@ -799,5 +858,25 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   width: auto !important;
   background: transparent !important;
   border: none !important;
+}
+
+/* Force foreignObject visibility */
+.vue-flow__node foreignObject {
+  overflow: visible !important;
+  z-index: 1000 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Ensure HTML content within foreignObject is visible */
+.vue-flow__node foreignObject * {
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: white !important;
+}
+
+/* Fix for Vue Flow's node rendering system */
+.vue-flow__node {
+  overflow: visible !important;
 }
 </style>

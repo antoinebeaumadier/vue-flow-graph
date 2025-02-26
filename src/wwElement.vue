@@ -1,6 +1,6 @@
 <script setup>
 import { ref, defineProps, computed, watch, watchEffect, onMounted, nextTick } from 'vue';
-import { VueFlow, useVueFlow, MarkerType, Position, useHandle } from '@vue-flow/core';
+import { VueFlow, useVueFlow, MarkerType, Position, Handle } from '@vue-flow/core';
 import { v4 as uuidv4 } from 'uuid';
 
 const props = defineProps({
@@ -836,34 +836,54 @@ const handleKeyDown = (event) => {
       
       <!-- Custom Node Template for Org Chart -->
       <template #node-customNode="{ data }">
-        <div class="custom-node" :class="{ 'deactivated': data.isDeactivated }">
-          <div class="product-name">{{ data.productName }}</div>
-          <div class="company-name">{{ data.companyName }}</div>
-          <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
-            <span 
-              v-for="(code, index) in data.countryCodes" 
-              :key="index" 
-              class="country-flag"
-              :title="code.toUpperCase()">
-              {{ getCountryFlag(code) }}
-            </span>
-          </div>
-          <div v-if="data.isDeactivated" class="deactivated-badge">
-            DEACTIVATED
-          </div>
-        </div>
-      </template>
-      
-      <!-- Custom Node Template for LCA Nodes -->
-      <template #node-lcaNode="{ data }">
-        <div class="lca-node">
-          <div class="process-name">{{ data.processName }}</div>
-          <div class="process-type" :class="data.processType">{{ data.processType }}</div>
-          <div v-if="data.country" class="country-flag">
-            {{ getCountryFlag(data.country) }}
-          </div>
-        </div>
-      </template>
+  <div class="custom-node" :class="{ 'deactivated': data.isDeactivated }">
+    <!-- Add source handle at the bottom -->
+    <Handle 
+      type="source" 
+      :position="Position.Bottom" 
+      :connectable="!data.isDeactivated"
+    />
+    
+    <!-- Add target handle at the top -->
+    <Handle 
+      type="target" 
+      :position="Position.Top" 
+      :connectable="!data.isDeactivated"
+    />
+    
+    <div class="product-name">{{ data.productName }}</div>
+    <div class="company-name">{{ data.companyName }}</div>
+    <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+      <span 
+        v-for="(code, index) in data.countryCodes" 
+        :key="index" 
+        class="country-flag"
+        :title="code.toUpperCase()">
+        {{ getCountryFlag(code) }}
+      </span>
+    </div>
+    <div v-if="data.isDeactivated" class="deactivated-badge">
+      DEACTIVATED
+    </div>
+  </div>
+</template>
+
+<!-- Modified template for the lcaNode template -->
+<template #node-lcaNode="{ data }">
+  <div class="lca-node">
+    <!-- Add source handle at the bottom -->
+    <Handle type="source" :position="Position.Bottom" />
+    
+    <!-- Add target handle at the top -->
+    <Handle type="target" :position="Position.Top" />
+    
+    <div class="process-name">{{ data.processName }}</div>
+    <div class="process-type" :class="data.processType">{{ data.processType }}</div>
+    <div v-if="data.country" class="country-flag">
+      {{ getCountryFlag(data.country) }}
+    </div>
+  </div>
+</template>
       
       <!-- Connection Line Template -->
       <template #connection-line="{ sourceX, sourceY, targetX, targetY }">
@@ -896,11 +916,15 @@ const handleKeyDown = (event) => {
   position: absolute;
   top: 10px;
   left: 10px;
-  z-index: 999; /* Increased z-index */
-  background-color: white;
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 999;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 250px;
 }
 
 .dual-tree-container {

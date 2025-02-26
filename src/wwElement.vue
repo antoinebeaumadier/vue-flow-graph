@@ -81,10 +81,7 @@ onMounted(() => {
       };
       return { getCountryFlag };
     }
-
-    
   });
-
 
   addNodeType('lcaNode', {
     template: `
@@ -153,7 +150,6 @@ onMounted(() => {
     }
   });
 
-
   onConnect(handleConnect);
 
   if (Array.isArray(props.content.omittedNodes)) {
@@ -175,6 +171,15 @@ onMounted(() => {
     }
   `;
   document.head.appendChild(emojiFontStyle);
+  
+  // Add debugging to force node visibility after render
+  setTimeout(() => {
+    console.log("Forcing node visibility");
+    document.querySelectorAll('.vue-flow__node foreignObject').forEach(fo => {
+      fo.setAttribute('width', '200');
+      fo.setAttribute('height', '150');
+    });
+  }, 1000);
 });
 
 // Process LCA structure data into nodes and edges (inverted order: rank 1 at bottom)
@@ -186,56 +191,82 @@ const processLCAStructure = (lcaData) => {
   try {
     // Sort by rank (ascending) to invert order (rank 1 at bottom)
     const sortedData = [...lcaData].sort((a, b) => a.rank - b.rank);
+    
+    // Setup spacing constants
+    const spacingX = 250;
+    const spacingY = 150;
+    const startY = 100; // Start from top for highest rank
 
-    const lcaNodes = sortedData.map((item, index) => {
-      const nodeId = `lca-${item.nomenclature_process_id || index}`;
-      return {
-  id: nodeId,
-  type: 'lcaNode',
-  position: { x: startX + (nodeIndex * spacingX), y: startY + ((maxRank - rank) * spacingY) },
-  data: {
-    name: item.nomenclature_process?.name_eng || `Process ${index + 1}`,
-    companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
-    countryCodes: item.country ? [item.country] : [],
-    percentage: item.percentage || 0,
-    isOmitted: false
-  },
-  draggable: true,
-  connectable: true,
-  width: 200, // Add explicit dimensions
-  height: 150, // Add explicit dimensions
-  style: {
-    zIndex: 10
-  }
-};
-
-    });
-
-    const lcaEdges = [];
+    // Create a mapping of nodes by rank
     const nodesByRank = {};
-
     sortedData.forEach((item, index) => {
       const rank = item.rank;
       if (!nodesByRank[rank]) {
         nodesByRank[rank] = [];
       }
-      nodesByRank[rank].push(`lca-${item.nomenclature_process_id || index}`);
+      nodesByRank[rank].push({
+        id: `lca-${item.nomenclature_process_id || index}`,
+        data: item
+      });
     });
 
     const ranks = Object.keys(nodesByRank).map(Number).sort((a, b) => a - b);
+    const maxRank = Math.max(...ranks);
 
+    // Create nodes with correct positions
+    const lcaNodes = sortedData.map((item, index) => {
+      const nodeId = `lca-${item.nomenclature_process_id || index}`;
+      const rank = item.rank;
+      
+      // Calculate position for this node
+      // Find position of this node in its rank
+      const rankNodes = nodesByRank[rank];
+      const nodeIndex = rankNodes.findIndex(n => n.id === nodeId);
+      
+      // Calculate X position based on rank width
+      const rankWidth = rankNodes.length * spacingX;
+      const startX = 1200 - (rankWidth / 2);
+      const xPos = startX + (nodeIndex * spacingX);
+      
+      // Calculate Y position (inverted)
+      const yPos = startY + ((maxRank - rank) * spacingY);
+      
+      return {
+        id: nodeId,
+        type: 'lcaNode',
+        position: { x: xPos, y: yPos },
+        data: {
+          name: item.nomenclature_process?.name_eng || `Process ${index + 1}`,
+          companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
+          countryCodes: item.country ? [item.country] : [],
+          percentage: item.percentage || 0,
+          isOmitted: false
+        },
+        draggable: true,
+        connectable: true,
+        width: 200,
+        height: 150,
+        style: {
+          zIndex: 10
+        }
+      };
+    });
+
+    // Create edges between ranks
+    const lcaEdges = [];
+    
     // Connect nodes hierarchically (parent-child within ranks, top to bottom)
     for (let i = 0; i < ranks.length - 1; i++) {
       const currentRank = ranks[i];
       const nextRank = ranks[i + 1];
-      nodesByRank[currentRank].forEach((sourceId, sourceIndex) => {
+      nodesByRank[currentRank].forEach((sourceNode) => {
         // Connect to the first node in the next rank for a cleaner hierarchy
         if (nodesByRank[nextRank].length > 0) {
-          const targetId = nodesByRank[nextRank][0]; // Connect to the first node in the next rank
+          const targetNode = nodesByRank[nextRank][0]; // Connect to the first node in the next rank
           lcaEdges.push({
-            id: `e-${sourceId}-${targetId}`,
-            source: sourceId,
-            target: targetId,
+            id: `e-${sourceNode.id}-${targetNode.id}`,
+            source: sourceNode.id,
+            target: targetNode.id,
             animated: false,
             style: {
               stroke: props.content.edgeColor || '#000',
@@ -245,29 +276,6 @@ const processLCAStructure = (lcaData) => {
         }
       });
     }
-
-    // Position nodes (inverted: higher ranks at top, lower ranks at bottom)
-    const spacingX = 250;
-    const spacingY = 150;
-    const startY = 100; // Start from top for highest rank
-    const maxRank = Math.max(...ranks);
-
-    ranks.forEach((rank, rankIndex) => {
-      const nodesInRank = nodesByRank[rank];
-      const rankWidth = nodesInRank.length * spacingX;
-      const startX = 1200 - (rankWidth / 2);
-      
-      nodesInRank.forEach((nodeId, nodeIndex) => {
-        const node = lcaNodes.find(n => n.id === nodeId);
-        if (node) {
-          // Invert Y position: lowest rank (1) at bottom, highest rank at top
-          node.position = {
-            x: startX + (nodeIndex * spacingX),
-            y: startY + ((maxRank - rank) * spacingY) // Invert by using maxRank - rank
-          };
-        }
-      });
-    });
 
     return { nodes: lcaNodes, edges: lcaEdges };
   } catch (error) {
@@ -358,37 +366,36 @@ const calculateNodePositions = (data) => {
       const isOmitted = omittedNodeIds.value.includes(stringNodeId);
 
       return {
-  id: stringNodeId,
-  position: { x: nodeData.xPos || baseX, y: nodeData.yPos || 0 },
-  data: {
-    name: node.name || "Unnamed Node",
-    companyName: node.company_name || "Unknown Company",
-    countryCodes: Array.isArray(node.country_iso) ? node.country_iso : (node.country_iso ? [node.country_iso] : []),
-    isOmitted: isOmitted
-  },
-  draggable: false,
-  connectable: false,
-  style: {
-    backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
-                  isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-    color: "#fff",
-    padding: "8px",
-    borderRadius: "4px",
-    textAlign: "center",
-    border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
-    cursor: "pointer",
-    width: "200px", // Make sure width is set
-    height: "auto", // Allow height to adjust to content
-    fontFamily: "Nunito, sans-serif",
-    fontWeight: "500",
-    zIndex: 999,
-    position: "relative"
-  },
-  width: 200, // Add explicit dimensions
-  height: 150, // Add explicit dimensions
-  type: "treeNode",
-};
-
+        id: stringNodeId,
+        position: { x: nodeData.xPos || baseX, y: nodeData.yPos || 0 },
+        data: {
+          name: node.name || "Unnamed Node",
+          companyName: node.company_name || "Unknown Company",
+          countryCodes: Array.isArray(node.country_iso) ? node.country_iso : (node.country_iso ? [node.country_iso] : []),
+          isOmitted: isOmitted
+        },
+        draggable: false,
+        connectable: false,
+        style: {
+          backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
+                        isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
+          color: "#fff",
+          padding: "8px",
+          borderRadius: "4px",
+          textAlign: "center",
+          border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+          cursor: "pointer",
+          width: "200px",
+          height: "auto",
+          fontFamily: "Nunito, sans-serif",
+          fontWeight: "500",
+          zIndex: 999,
+          position: "relative"
+        },
+        width: 200,
+        height: 150,
+        type: "treeNode",
+      };
     });
   } catch (error) {
     console.error("Error calculating node positions:", error);
@@ -660,6 +667,14 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   if (newTreeLength > 0 || newLcaLength > 0) {
     nextTick(() => {
       fitView({ padding: 0.5, includeHiddenNodes: false, duration: 800 });
+      
+      // Force repaint of nodes
+      setTimeout(() => {
+        document.querySelectorAll('.vue-flow__node foreignObject').forEach(fo => {
+          fo.setAttribute('width', '200');
+          fo.setAttribute('height', '150');
+        });
+      }, 100);
     });
   }
 });
@@ -668,26 +683,26 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
 <template>
   <div class="org-chart-container" :style="{ backgroundColor: content.backgroundColor || '#f4f4f4' }">
     <VueFlow 
-  :key="nodes.length + lcaNodes.length"
-  :nodes="[...nodes, ...lcaNodes]" 
-  :edges="[...edges, ...lcaEdges]" 
-  @nodeClick="handleNodeClick"
-  @node:omit="handleNodeOmit"
-  :nodesDraggable="node => node.type === 'lcaNode'"
-  :edgesUpdatable="true" 
-  :edgesFocusable="true"
-  :edgesDraggable="true" 
-  :elevateEdgesOnSelect="true"
-  :nodesConnectable="node => node.type === 'lcaNode'" 
-  :connectOnClick="true"
-  :nodesFocusable="true"
-  :applyDefault="false"
-  :selectionKeyCode="null"
-  :fitView="true"
-  :minZoom="0.2"
-  :maxZoom="4"
-  @edgesUpdate="onEdgesUpdate"
-  @nodesDelete="onNodesDelete">
+      :key="nodes.length + lcaNodes.length"
+      :nodes="[...nodes, ...lcaNodes]" 
+      :edges="[...edges, ...lcaEdges]" 
+      @nodeClick="handleNodeClick"
+      @node:omit="handleNodeOmit"
+      :nodesDraggable="node => node.type === 'lcaNode'"
+      :edgesUpdatable="true" 
+      :edgesFocusable="true"
+      :edgesDraggable="true" 
+      :elevateEdgesOnSelect="true"
+      :nodesConnectable="node => node.type === 'lcaNode'" 
+      :connectOnClick="true"
+      :nodesFocusable="true"
+      :applyDefault="false"
+      :selectionKeyCode="null"
+      :fitView="true"
+      :minZoom="0.2"
+      :maxZoom="4"
+      @edgesUpdate="onEdgesUpdate"
+      @nodesDelete="onNodesDelete">
       
       <Panel position="top-right">
         <div class="controls">
@@ -832,6 +847,7 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   color: white;
 }
 
+/* Vue Flow specific fixes */
 .vue-flow__node-treeNode,
 .vue-flow__node-lcaNode {
   overflow: visible !important;
@@ -877,6 +893,17 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
 
 /* Fix for Vue Flow's node rendering system */
 .vue-flow__node {
+  overflow: visible !important;
+}
+
+/* Fix for text display */
+.vue-flow__node-treeNode .vue-flow__handle,
+.vue-flow__node-lcaNode .vue-flow__handle {
+  z-index: 1 !important;
+}
+
+/* Ensure foreignObject renders properly */
+.vue-flow__node svg {
   overflow: visible !important;
 }
 </style>

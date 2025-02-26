@@ -22,7 +22,7 @@ const lcaEdges = ref([]);
 onMounted(() => {
   addNodeType('treeNode', {
   template: `
-    <<div class="custom-node tree-node" style="z-index: 999; position: relative; transform: none !important;">
+    <div class="custom-node tree-node" style="z-index: 999; position: relative; transform: none !important;">
       <div class="node-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.name }}</div>
       <div class="company-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.companyName }}</div>
       <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">

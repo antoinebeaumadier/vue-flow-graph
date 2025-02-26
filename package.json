@@ -9,6 +9,7 @@
     "@weweb/cli": "latest"
   },
   "dependencies": {
-    "@vue-flow/core": "^1.42.1"
+    "@vue-flow/core": "^1.42.1",
+    "@vue-flow/minimap": "^1.5.2"
   }
 }

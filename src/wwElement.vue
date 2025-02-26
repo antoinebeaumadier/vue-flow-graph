@@ -1,7 +1,9 @@
 <script setup>
 import { ref, defineProps, computed, watch, watchEffect, onMounted, nextTick } from 'vue';
 import { VueFlow, useVueFlow, MarkerType, Position, Handle } from '@vue-flow/core';
+import { MiniMap } from '@vue-flow/minimap'
 import { v4 as uuidv4 } from 'uuid';
+import '@vue-flow/minimap/dist/style.css'
 
 const props = defineProps({
   content: { type: Object, required: true },
@@ -896,6 +898,7 @@ const handleKeyDown = (event) => {
           fill="none"
         />
       </template>
+      <MiniMap pannable zoomable />
     </VueFlow>
   </div>
 </template>

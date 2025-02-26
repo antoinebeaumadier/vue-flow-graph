@@ -49,7 +49,7 @@ export default {
         type: 'Info',
         section: 'settings',
         bindable: 'list',
-        defaultValue: null,
+        defaultValue: [],
         bindingValidation: {
           type: 'array',
           tooltip: 'LCA structure array with rank-based relationships.',

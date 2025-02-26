@@ -112,17 +112,7 @@ onMounted(() => {
   if (Array.isArray(props.content.omittedNodes)) {
     omittedNodeIds.value = props.content.omittedNodes.map(String);
   }
-  
-  // Allow a short delay for the graph to render first
-  setTimeout(() => {
-    if (nodes.value.length > 0 || lcaNodes.value.length > 0) {
-      fitView({ 
-        padding: 0.5,
-        includeHiddenNodes: false,
-        duration: 800
-      });
-    }
-  }, 300);
+
   
   // Add Nunito font to document if needed
   const nunitoFont = document.createElement('link');
@@ -682,26 +672,14 @@ watchEffect(() => {
 
 // Process LCA Structure Data
 watch(() => props.content.lcaStructure, (newLcaData) => {
-  if (!newLcaData || !Array.isArray(newLcaData) || newLcaData.length === 0) {
-    console.log("No LCA structure data available");
-    lcaNodes.value = [];
-    lcaEdges.value = [];
-    return;
-  }
-  
-  console.log("Processing LCA Structure:", newLcaData);
-  const { nodes: processedNodes, edges: processedEdges } = processLCAStructure(newLcaData);
-  
+  const { nodes: processedNodes, edges: processedEdges } = processLCAStructure(newLcaData || []);
+  console.log("Processed LCA Nodes:", processedNodes);
+  console.log("Processed LCA Edges:", processedEdges);
   lcaNodes.value = processedNodes;
   lcaEdges.value = processedEdges;
-  
-  // Allow time for nodes to render, then fit view
+
   nextTick(() => {
-    fitView({ 
-      padding: 0.5, 
-      includeHiddenNodes: false, 
-      duration: 800 
-    });
+    fitView({ padding: 0.5, includeHiddenNodes: false, duration: 800 });
   });
 }, { immediate: true });
 

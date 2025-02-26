@@ -1,13 +1,13 @@
 <script setup>
 import { ref, defineProps, computed, watch, watchEffect, onMounted, nextTick } from 'vue';
-import { VueFlow, useVueFlow, Panel, addNodeType } from '@vue-flow/core';
+import { VueFlow, useVueFlow, Panel, addNodeType, removeEdges, removeNodes } from '@vue-flow/core';
 
 const props = defineProps({
   content: { type: Object, required: true },
 });
 
 const emit = defineEmits(["update:content", "trigger-event"]);
-const { fitView, findNode, addEdges, onConnect } = useVueFlow();
+const { fitView, findNode, addEdges, onConnect, getNodes, getEdges } = useVueFlow();
 
 const highlightedNode = ref(null);
 const highlightedEdges = ref([]);
@@ -23,7 +23,7 @@ onMounted(() => {
   addNodeType('treeNode', {
     template: `
       <div class="custom-node tree-node">
-        <div class="product-name">{{ data.productName }}</div>
+        <div class="node-name">{{ data.name }}</div>
         <div class="company-name">{{ data.companyName }}</div>
         <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
           <span 
@@ -63,7 +63,7 @@ onMounted(() => {
   addNodeType('lcaNode', {
     template: `
       <div class="custom-node lca-node">
-        <div class="product-name">{{ data.productName }}</div>
+        <div class="node-name">{{ data.name }}</div>
         <div class="company-name">{{ data.companyName }}</div>
         <div class="percentage" v-if="data.percentage !== undefined">{{ data.percentage }}%</div>
         <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
@@ -141,7 +141,7 @@ const processLCAStructure = (lcaData) => {
         type: 'lcaNode',
         position: { x: 0, y: 0 }, // Will be calculated later
         data: {
-          productName: item.nomenclature_process?.name || `Process ${index + 1}`,
+          name: item.nomenclature_process?.name_eng || `Process ${index + 1}`,
           companyName: `Rank: ${item.rank} - ${item.rank_name_eng || ''}`,
           countryCodes: item.country ? [item.country] : [],
           percentage: item.percentage || 0,
@@ -165,12 +165,14 @@ const processLCAStructure = (lcaData) => {
 
     const ranks = Object.keys(nodesByRank).map(Number).sort((a, b) => a - b);
 
-    // Connect nodes between consecutive ranks (top to bottom, but inverted visually)
+    // Connect nodes hierarchically (parent-child within ranks, top to bottom)
     for (let i = 0; i < ranks.length - 1; i++) {
       const currentRank = ranks[i];
       const nextRank = ranks[i + 1];
-      nodesByRank[currentRank].forEach(sourceId => {
-        nodesByRank[nextRank].forEach(targetId => {
+      nodesByRank[currentRank].forEach((sourceId, sourceIndex) => {
+        // Connect to the first node in the next rank for a cleaner hierarchy
+        if (nodesByRank[nextRank].length > 0) {
+          const targetId = nodesByRank[nextRank][0]; // Connect to the first node in the next rank
           lcaEdges.push({
             id: `e-${sourceId}-${targetId}`,
             source: sourceId,
@@ -181,7 +183,7 @@ const processLCAStructure = (lcaData) => {
               strokeWidth: 1.5,
             },
           });
-        });
+        }
       });
     }
 
@@ -300,7 +302,7 @@ const calculateNodePositions = (data) => {
         id: stringNodeId,
         position: { x: nodeData.xPos || baseX, y: nodeData.yPos || 0 },
         data: {
-          productName: node.name || "Unnamed Product",
+          name: node.name || "Unnamed Node",
           companyName: node.company_name || "Unknown Company",
           countryCodes: Array.isArray(node.country_iso) ? node.country_iso : (node.country_iso ? [node.country_iso] : []),
           isOmitted: isOmitted
@@ -334,7 +336,7 @@ const updateHighlighting = (nodeId) => {
   if (!nodeId) return;
   const stringNodeId = String(nodeId);
   highlightedNode.value = stringNodeId;
-  highlightedEdges.value = edges.value
+  highlightedEdges.value = [...edges.value, ...lcaEdges.value]
     .filter((edge) => edge.source === stringNodeId || edge.target === stringNodeId)
     .map((edge) => edge.id);
 
@@ -419,7 +421,7 @@ const updateAllEdges = () => {
 const getAllChildNodeIds = (nodeId) => {
   if (!nodeId) return [];
   const children = [];
-  const directChildren = edges.value
+  const directChildren = [...edges.value, ...lcaEdges.value]
     .filter(edge => edge.source === nodeId)
     .map(edge => edge.target);
   children.push(...directChildren);
@@ -497,6 +499,35 @@ const handleConnect = (connection) => {
     });
     addEdges([connection]);
   }
+};
+
+const onEdgesUpdate = (oldEdge, newConnection) => {
+  if (!newConnection.source || !newConnection.target) return;
+  const sourceType = newConnection.source.startsWith('lca-') ? 'lca' : 'tree';
+  const targetType = newConnection.target.startsWith('lca-') ? 'lca' : 'tree';
+
+  if ((sourceType === 'lca' && targetType === 'lca') || 
+      (sourceType === 'lca' && targetType === 'tree')) {
+    const updatedEdges = [...edges.value, ...lcaEdges.value].map(edge => 
+      edge.id === oldEdge.id ? { ...edge, ...newConnection } : edge
+    );
+    edges.value = updatedEdges.filter(e => !e.source.startsWith('tree') || !e.target.startsWith('tree'));
+    lcaEdges.value = updatedEdges.filter(e => e.source.startsWith('lca-') && e.target.startsWith('lca-'));
+  }
+};
+
+const onNodesDelete = (deletedNodes) => {
+  const nodeIds = deletedNodes.map(node => node.id);
+  nodes.value = nodes.value.filter(node => !nodeIds.includes(node.id));
+  lcaNodes.value = lcaNodes.value.filter(node => !nodeIds.includes(node.id));
+
+  // Remove edges connected to deleted nodes
+  edges.value = edges.value.filter(edge => 
+    !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
+  );
+  lcaEdges.value = lcaEdges.value.filter(edge => 
+    !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
+  );
 };
 
 // Watchers
@@ -680,7 +711,7 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   border-radius: 4px;
 }
 
-.product-name {
+.node-name {
   font-weight: 700;
   font-size: 14px;
   margin-bottom: 4px;

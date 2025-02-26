@@ -21,85 +21,86 @@ const lcaEdges = ref([]);
 // Register custom node types
 onMounted(() => {
   addNodeType('treeNode', {
-    template: `
-      <div class="custom-node tree-node" :style="{ opacity: 1 }">
-        <div class="node-name">{{ data.name }}</div>
-        <div class="company-name">{{ data.companyName }}</div>
-        <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
-          <span 
-            v-for="(code, index) in data.countryCodes" 
-            :key="index" 
-            class="country-flag"
-            :title="code.toUpperCase()">
-            {{ getCountryFlag(code) }}
-          </span>
-        </div>
-        <div class="node-controls">
-          <button 
-            class="omit-button" 
-            :class="{ 'omitted': data.isOmitted }"
-            @click.stop="$emit('node:omit', id)">
-            {{ data.isOmitted ? 'Include' : 'Omit' }}
-          </button>
-        </div>
+  template: `
+    <div class="custom-node tree-node" style="z-index: 999; position: relative;">
+      <div class="node-name" style="color: white; visibility: visible; opacity: 1;">{{ data.name }}</div>
+      <div class="company-name" style="color: white; visibility: visible; opacity: 1;">{{ data.companyName }}</div>
+      <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+        <span 
+          v-for="(code, index) in data.countryCodes" 
+          :key="index" 
+          class="country-flag"
+          :title="code.toUpperCase()">
+          {{ getCountryFlag(code) }}
+        </span>
       </div>
-    `,
-    setup(props) {
-      const getCountryFlag = (isoCode) => {
-        if (!isoCode) return '';
-        try {
-          return Array.from(isoCode.toUpperCase())
-            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
-            .join('');
-        } catch (error) {
-          console.error("Error generating flag:", error);
-          return '';
-        }
-      };
-      return { getCountryFlag };
-    }
-  });
+      <div class="node-controls">
+        <button 
+          class="omit-button" 
+          :class="{ 'omitted': data.isOmitted }"
+          @click.stop="$emit('node:omit', id)">
+          {{ data.isOmitted ? 'Include' : 'Omit' }}
+        </button>
+      </div>
+    </div>
+  `,
+  setup(props) {
+    const getCountryFlag = (isoCode) => {
+      if (!isoCode) return '';
+      try {
+        return Array.from(isoCode.toUpperCase())
+          .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+          .join('');
+      } catch (error) {
+        console.error("Error generating flag:", error);
+        return '';
+      }
+    };
+    return { getCountryFlag };
+  }
+});
 
-  addNodeType('lcaNode', {
-    template: `
-      <div class="custom-node lca-node" :style="{ opacity: 1 }">
-        <div class="node-name">{{ data.name }}</div>
-        <div class="company-name">{{ data.companyName }}</div>
-        <div class="percentage" v-if="data.percentage !== undefined">{{ data.percentage }}%</div>
-        <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
-          <span 
-            v-for="(code, index) in data.countryCodes" 
-            :key="index" 
-            class="country-flag"
-            :title="code.toUpperCase()">
-            {{ getCountryFlag(code) }}
-          </span>
-        </div>
-        <div class="node-controls">
-          <button 
-            class="omit-button" 
-            :class="{ 'omitted': data.isOmitted }"
-            @click.stop="$emit('node:omit', id)">
-            {{ data.isOmitted ? 'Include' : 'Omit' }}
-          </button>
-        </div>
+addNodeType('lcaNode', {
+  template: `
+    <div class="custom-node lca-node" style="z-index: 999; position: relative;">
+      <div class="node-name" style="color: white; visibility: visible; opacity: 1;">{{ data.name }}</div>
+      <div class="company-name" style="color: white; visibility: visible; opacity: 1;">{{ data.companyName }}</div>
+      <div class="percentage" v-if="data.percentage !== undefined" style="color: white; visibility: visible; opacity: 1;">{{ data.percentage }}%</div>
+      <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
+        <span 
+          v-for="(code, index) in data.countryCodes" 
+          :key="index" 
+          class="country-flag"
+          :title="code.toUpperCase()">
+          {{ getCountryFlag(code) }}
+        </span>
       </div>
-    `,
-    setup(props) {
-      const getCountryFlag = (isoCode) => {
-        if (!isoCode) return '';
-        try {
-          return Array.from(isoCode.toUpperCase())
-            .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
-            .join('');
-        } catch (error) {
-          console.error("Error generating flag:", error);
-          return '';
-        }
-      };
-      return { getCountryFlag };
-    }
-  });
+      <div class="node-controls">
+        <button 
+          class="omit-button" 
+          :class="{ 'omitted': data.isOmitted }"
+          @click.stop="$emit('node:omit', id)">
+          {{ data.isOmitted ? 'Include' : 'Omit' }}
+        </button>
+      </div>
+    </div>
+  `,
+  setup(props) {
+    const getCountryFlag = (isoCode) => {
+      if (!isoCode) return '';
+      try {
+        return Array.from(isoCode.toUpperCase())
+          .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+          .join('');
+      } catch (error) {
+        console.error("Error generating flag:", error);
+        return '';
+      }
+    };
+    return { getCountryFlag };
+  }
+});
+
 
   onConnect(handleConnect);
 
@@ -302,32 +303,33 @@ const calculateNodePositions = (data) => {
       const isOmitted = omittedNodeIds.value.includes(stringNodeId);
 
       return {
-        id: stringNodeId,
-        position: { x: nodeData.xPos || baseX, y: nodeData.yPos || 0 },
-        data: {
-          name: node.name || "Unnamed Node",
-          companyName: node.company_name || "Unknown Company",
-          countryCodes: Array.isArray(node.country_iso) ? node.country_iso : (node.country_iso ? [node.country_iso] : []),
-          isOmitted: isOmitted
-        },
-        draggable: false, // Disable dragging for Collection Data nodes
-        connectable: false, // Disable connections within Collection Data
-        style: {
-          backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
-                         isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-          color: "#fff",
-          padding: "8px",
-          borderRadius: "4px",
-          textAlign: "center",
-          border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
-          cursor: "pointer",
-          width: "200px",
-          fontFamily: "Nunito, sans-serif",
-          fontWeight: "500",
-          zIndex: 10
-        },
-        type: "treeNode",
-      };
+  id: stringNodeId,
+  position: { x: nodeData.xPos || baseX, y: nodeData.yPos || 0 },
+  data: {
+    name: node.name || "Unnamed Node",
+    companyName: node.company_name || "Unknown Company",
+    countryCodes: Array.isArray(node.country_iso) ? node.country_iso : (node.country_iso ? [node.country_iso] : []),
+    isOmitted: isOmitted
+  },
+  draggable: false,
+  connectable: false,
+  style: {
+    backgroundColor: isOmitted ? props.content.omitColor || "#8B0000" : 
+                    isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
+    color: "#fff",
+    padding: "8px",
+    borderRadius: "4px",
+    textAlign: "center",
+    border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+    cursor: "pointer",
+    width: "200px",
+    fontFamily: "Nunito, sans-serif",
+    fontWeight: "500",
+    zIndex: 999,  // Increased z-index
+    position: "relative" // Ensure relative positioning
+  },
+  type: "treeNode",
+};
     });
   } catch (error) {
     console.error("Error calculating node positions:", error);
@@ -607,20 +609,24 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
 <template>
   <div class="org-chart-container" :style="{ backgroundColor: content.backgroundColor || '#f4f4f4' }">
     <VueFlow 
-      :key="nodes.length + lcaNodes.length"
-      :nodes="[...nodes, ...lcaNodes]" 
-      :edges="[...edges, ...lcaEdges]" 
-      @nodeClick="handleNodeClick"
-      @node:omit="handleNodeOmit"
-      :nodesDraggable="node => node.type === 'lcaNode'" 
-      :edgesUpdatable="true" 
-      :edgesFocusable="true"
-      :edgesDraggable="true" 
-      :elevateEdgesOnSelect="true"
-      :nodesConnectable="node => node.type === 'lcaNode'" 
-      :connectOnClick="true"
-      @edgesUpdate="onEdgesUpdate"
-      @nodesDelete="onNodesDelete">
+  :key="nodes.length + lcaNodes.length"
+  :nodes="[...nodes, ...lcaNodes]" 
+  :edges="[...edges, ...lcaEdges]" 
+  @nodeClick="handleNodeClick"
+  @node:omit="handleNodeOmit"
+  :nodesDraggable="node => node.type === 'lcaNode'"
+  :edgesUpdatable="true" 
+  :edgesFocusable="true"
+  :edgesDraggable="true" 
+  :elevateEdgesOnSelect="true"
+  :nodesConnectable="node => node.type === 'lcaNode'" 
+  :connectOnClick="true"
+  :nodesFocusable="true"
+  :fitView="true"
+  :minZoom="0.2"
+  :maxZoom="4"
+  @edgesUpdate="onEdgesUpdate"
+  @nodesDelete="onNodesDelete">
       
       <Panel position="top-right">
         <div class="controls">
@@ -707,36 +713,39 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
 }
 
 .custom-node {
-  display: flex;
-  flex-direction: column;
-  min-width: 180px;
-  width: 100%;
-  padding: 10px;
-  border-radius: 4px;
-  z-index: 10;
-  position: relative;
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 180px !important;
+  width: 100% !important;
+  padding: 10px !important;
+  border-radius: 4px !important;
+  z-index: 999 !important;
+  position: relative !important;
 }
 
 .node-name {
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 4px;
-  opacity: 1;
-  visibility: visible;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  margin-bottom: 4px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: white !important;
 }
 
 .company-name {
-  font-size: 12px;
-  opacity: 0.9;
-  margin-bottom: 4px;
-  visibility: visible;
+  font-size: 12px !important;
+  opacity: 0.9 !important;
+  margin-bottom: 4px !important;
+  visibility: visible !important;
+  color: white !important;
 }
 
 .percentage {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  visibility: visible;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  margin-bottom: 4px !important;
+  visibility: visible !important;
+  color: white !important;
 }
 
 .country-flags {

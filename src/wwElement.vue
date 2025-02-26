@@ -892,6 +892,17 @@ const handleKeyDown = (event) => {
   font-display: swap;
 }
 
+.controls-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 999; /* Increased z-index */
+  background-color: white;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
 .dual-tree-container {
   height: 700px;
   width: 100%;

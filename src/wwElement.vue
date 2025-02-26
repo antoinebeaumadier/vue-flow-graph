@@ -22,7 +22,7 @@ const lcaEdges = ref([]);
 onMounted(() => {
   addNodeType('treeNode', {
     template: `
-      <div class="custom-node tree-node">
+      <div class="custom-node tree-node" :style="{ opacity: 1 }">
         <div class="node-name">{{ data.name }}</div>
         <div class="company-name">{{ data.companyName }}</div>
         <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
@@ -37,7 +37,7 @@ onMounted(() => {
         <div class="node-controls">
           <button 
             class="omit-button" 
-            :class="{ omitted: data.isOmitted }"
+            :class="{ 'omitted': data.isOmitted }"
             @click.stop="$emit('node:omit', id)">
             {{ data.isOmitted ? 'Include' : 'Omit' }}
           </button>
@@ -62,7 +62,7 @@ onMounted(() => {
 
   addNodeType('lcaNode', {
     template: `
-      <div class="custom-node lca-node">
+      <div class="custom-node lca-node" :style="{ opacity: 1 }">
         <div class="node-name">{{ data.name }}</div>
         <div class="company-name">{{ data.companyName }}</div>
         <div class="percentage" v-if="data.percentage !== undefined">{{ data.percentage }}%</div>
@@ -78,7 +78,7 @@ onMounted(() => {
         <div class="node-controls">
           <button 
             class="omit-button" 
-            :class="{ omitted: data.isOmitted }"
+            :class="{ 'omitted': data.isOmitted }"
             @click.stop="$emit('node:omit', id)">
             {{ data.isOmitted ? 'Include' : 'Omit' }}
           </button>
@@ -148,7 +148,10 @@ const processLCAStructure = (lcaData) => {
           isOmitted: false
         },
         draggable: true,
-        connectable: true // Enable connections for LCA nodes
+        connectable: true, // Enable connections for LCA nodes
+        style: {
+          zIndex: 10
+        }
       };
     });
 
@@ -320,7 +323,8 @@ const calculateNodePositions = (data) => {
           cursor: "pointer",
           width: "200px",
           fontFamily: "Nunito, sans-serif",
-          fontWeight: "500"
+          fontWeight: "500",
+          zIndex: 10
         },
         type: "treeNode",
       };
@@ -709,24 +713,30 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   width: 100%;
   padding: 10px;
   border-radius: 4px;
+  z-index: 10;
+  position: relative;
 }
 
 .node-name {
   font-weight: 700;
   font-size: 14px;
   margin-bottom: 4px;
+  opacity: 1;
+  visibility: visible;
 }
 
 .company-name {
   font-size: 12px;
   opacity: 0.9;
   margin-bottom: 4px;
+  visibility: visible;
 }
 
 .percentage {
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
+  visibility: visible;
 }
 
 .country-flags {

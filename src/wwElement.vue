@@ -22,9 +22,9 @@ const lcaEdges = ref([]);
 onMounted(() => {
   addNodeType('treeNode', {
   template: `
-    <div class="custom-node tree-node" style="z-index: 999; position: relative;">
-      <div class="node-name" style="color: white; visibility: visible; opacity: 1;">{{ data.name }}</div>
-      <div class="company-name" style="color: white; visibility: visible; opacity: 1;">{{ data.companyName }}</div>
+    <<div class="custom-node tree-node" style="z-index: 999; position: relative; transform: none !important;">
+      <div class="node-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.name }}</div>
+      <div class="company-name" style="color: white; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: 0px 0px 2px rgba(0,0,0,0.5);">{{ data.companyName }}</div>
       <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
         <span 
           v-for="(code, index) in data.countryCodes" 
@@ -622,6 +622,8 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
   :nodesConnectable="node => node.type === 'lcaNode'" 
   :connectOnClick="true"
   :nodesFocusable="true"
+  :applyDefault="false"
+  :selectionKeyCode="null"
   :fitView="true"
   :minZoom="0.2"
   :maxZoom="4"
@@ -769,5 +771,33 @@ watch([() => nodes.value.length, () => lcaNodes.value.length], ([newTreeLength, 
 .lca-node {
   background-color: #2c3e50;
   color: white;
+}
+
+.vue-flow__node-treeNode,
+.vue-flow__node-lcaNode {
+  overflow: visible !important;
+  z-index: 1000 !important;
+  pointer-events: all !important;
+}
+
+/* Target the Vue Flow internal node content */
+.vue-flow__node-treeNode .vue-flow__node-default__content,
+.vue-flow__node-lcaNode .vue-flow__node-default__content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  pointer-events: all !important;
+  z-index: 1000 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* Ensure SVG transforms don't affect text display */
+.vue-flow__node-treeNode .vue-flow__node-default,
+.vue-flow__node-lcaNode .vue-flow__node-default {
+  height: auto !important;
+  width: auto !important;
+  background: transparent !important;
+  border: none !important;
 }
 </style>

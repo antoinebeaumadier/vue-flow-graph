@@ -3,7 +3,7 @@ export default {
         label: 'Dual Tree Chart',
         icon: 'logos/vueflow',
         customStylePropertiesOrder: [['nodeColor', 'edgeColor', 'lcaNodeColor', 'lcaEdgeColor', 'backgroundColor']],
-        customSettingsPropertiesOrder: ['data', 'lcaData'],
+        customSettingsPropertiesOrder: ['data', 'lcaData', 'deactivatedNodes', 'userConnections'],
     },
     triggerEvents: [
         {
@@ -19,6 +19,29 @@ export default {
             label: { en: 'On LCA Node Click' },
             event: {
                 nodeId: null,
+            },
+        },
+        {
+            name: 'node:activation-change',
+            label: { en: 'On Node Activation Change' },
+            event: {
+                nodeId: null,
+                activated: true,
+            },
+        },
+        {
+            name: 'connection:created',
+            label: { en: 'On Connection Created' },
+            event: {
+                sourceId: null,
+                targetId: null,
+            },
+        },
+        {
+            name: 'connection:removed',
+            label: { en: 'On Connection Removed' },
+            event: {
+                connectionId: null,
             },
         }
     ],
@@ -43,6 +66,32 @@ export default {
             bindingValidation: {
                 type: 'array',
                 tooltip: 'Array of objects representing LCA structure nodes by rank.',
+            },
+        },
+        deactivatedNodes: {
+            label: 'Deactivated Nodes',
+            type: 'Array',
+            section: 'settings',
+            bindable: true,
+            responsive: true,
+            states: true,
+            defaultValue: [],
+            bindingValidation: {
+                type: 'array',
+                tooltip: 'Array of node IDs that are deactivated.',
+            },
+        },
+        userConnections: {
+            label: 'User-Created Connections',
+            type: 'Array',
+            section: 'settings',
+            bindable: true,
+            responsive: true,
+            states: true,
+            defaultValue: [],
+            bindingValidation: {
+                type: 'array',
+                tooltip: 'Array of user-created connections between nodes.',
             },
         },
         selectedNodeId: {

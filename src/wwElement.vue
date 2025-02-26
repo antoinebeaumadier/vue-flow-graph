@@ -1,16 +1,29 @@
 <script setup>
 import { ref, defineProps, computed, watch, watchEffect, onMounted, nextTick } from 'vue';
-import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core';
+import { VueFlow, useVueFlow, MarkerType, Position, useHandle } from '@vue-flow/core';
+import { v4 as uuidv4 } from 'uuid';
 
 const props = defineProps({
   content: { type: Object, required: true },
 });
 
 const emit = defineEmits(["update:content", "trigger-event"]);
-const { fitView } = useVueFlow();
+const { 
+  findNode, 
+  onConnect, 
+  onNodesChange,
+  addEdges, 
+  removeEdges,
+  project, 
+  getEdges, 
+  getNodes, 
+  fitView 
+} = useVueFlow();
 
 const highlightedNode = ref(null);
 const highlightedEdges = ref([]);
+const deactivatedNodes = ref(new Set());
+const isDragging = ref(false);
 
 const nodes = ref([]);
 const edges = ref([]);
@@ -18,6 +31,42 @@ const edges = ref([]);
 // Separate references for LCA tree
 const lcaNodes = ref([]);
 const lcaEdges = ref([]);
+
+// Track user-created connections
+const userCreatedEdges = ref([]);
+
+// Helper function to check if a node is a leaf node (no children or all children deactivated)
+const isLeafNode = (nodeId) => {
+  const node = props.content.data?.find(n => String(n.id) === nodeId);
+  if (!node) return true;
+  
+  // If no child_variant_ids, it's a leaf node
+  if (!node.child_variant_ids || node.child_variant_ids.length === 0) return true;
+  
+  // If all children are deactivated, it's a leaf node
+  return node.child_variant_ids.every(childId => 
+    deactivatedNodes.value.has(String(childId))
+  );
+};
+
+// Helper function to get all descendant nodes
+const getAllDescendants = (nodeId) => {
+  const descendants = new Set();
+  
+  const addChildren = (id) => {
+    const node = props.content.data?.find(n => String(n.id) === id);
+    if (!node || !node.child_variant_ids) return;
+    
+    node.child_variant_ids.forEach(childId => {
+      const childIdStr = String(childId);
+      descendants.add(childIdStr);
+      addChildren(childIdStr);
+    });
+  };
+  
+  addChildren(nodeId);
+  return descendants;
+};
 
 // Helper function to calculate node positions with better spacing for org chart tree
 const calculateNodePositions = (data) => {
@@ -104,6 +153,7 @@ const calculateNodePositions = (data) => {
     const nodeData = nodesById[node.id];
     const stringNodeId = String(node.id);
     const isHighlighted = highlightedNode.value === stringNodeId;
+    const isDeactivated = deactivatedNodes.value.has(stringNodeId);
     
     // Create the node with HTML content for structured layout
     return {
@@ -119,23 +169,30 @@ const calculateNodePositions = (data) => {
         // Handle both array and single value formats for country codes
         countryCodes: Array.isArray(node.country_iso) 
           ? node.country_iso 
-          : (node.country_iso ? [node.country_iso] : [])
+          : (node.country_iso ? [node.country_iso] : []),
+        isDeactivated: isDeactivated
       },
+      // Allow connectable if it's a leaf node
+      connectable: isLeafNode(stringNodeId) && !isDeactivated,
       draggable: false,
       style: {
-        backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-        color: "#fff",
+        backgroundColor: isDeactivated ? "#cccccc" : (isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db"),
+        color: isDeactivated ? "#666666" : "#fff",
         padding: "8px",
         borderRadius: "4px",
         textAlign: "center",
-        border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+        border: `2px solid ${isDeactivated ? "#999999" : (isHighlighted ? "#DE0030" : "#000")}`,
         cursor: "pointer",
         width: "200px",
         fontFamily: "Nunito, sans-serif",
-        fontWeight: "500"
+        fontWeight: "500",
+        opacity: isDeactivated ? 0.7 : 1
       },
       // Use custom node with HTML template
       type: "customNode",
+      // Add sources/targets for connections
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top
     };
   });
 };
@@ -196,9 +253,12 @@ const calculateLcaNodePositions = (lcaData) => {
         data: { 
           processName: node.nomenclature_process?.name_eng || "Unknown Process",
           processType: node.nomenclature_process?.sector || "unknown",
-          country: node.country || ""
+          country: node.country || "",
+          originalData: node // Store original data for reference
         },
         draggable: false,
+        // Make LCA nodes connectable for custom connections
+        connectable: true,
         style: {
           backgroundColor: "#34495e", // Different color from org chart
           color: "#fff",
@@ -212,6 +272,9 @@ const calculateLcaNodePositions = (lcaData) => {
           fontWeight: "500"
         },
         type: "lcaNode",
+        // Add source/target positions for better connections
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top
       });
       
       // Connect to next rank if not the lowest rank
@@ -279,12 +342,21 @@ const updateHighlighting = (nodeId) => {
   // Update nodes with string comparison
   nodes.value = nodes.value.map(node => {
     const isHighlighted = node.id === stringNodeId;
+    const isDeactivated = deactivatedNodes.value.has(node.id);
+    
     return {
       ...node,
+      connectable: isLeafNode(node.id) && !isDeactivated,
+      data: {
+        ...node.data,
+        isDeactivated: isDeactivated
+      },
       style: {
         ...node.style,
-        backgroundColor: isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db",
-        border: `2px solid ${isHighlighted ? "#DE0030" : "#000"}`,
+        backgroundColor: isDeactivated ? "#cccccc" : (isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db"),
+        color: isDeactivated ? "#666666" : "#fff",
+        border: `2px solid ${isDeactivated ? "#999999" : (isHighlighted ? "#DE0030" : "#000")}`,
+        opacity: isDeactivated ? 0.7 : 1
       },
     };
   });
@@ -309,6 +381,141 @@ const updateHighlighting = (nodeId) => {
   });
 };
 
+// Function to toggle node activation state
+const toggleNodeActivation = (nodeId) => {
+  if (!nodeId) return;
+  
+  const stringNodeId = String(nodeId);
+  console.log(`Toggling activation for node: ${stringNodeId}`);
+  
+  // If the node is deactivated, activate it
+  if (deactivatedNodes.value.has(stringNodeId)) {
+    deactivatedNodes.value.delete(stringNodeId);
+  } else {
+    // If the node is activated, deactivate it and all its descendants
+    deactivatedNodes.value.add(stringNodeId);
+    
+    // Get all descendants and deactivate them
+    const descendants = getAllDescendants(stringNodeId);
+    descendants.forEach(descendantId => {
+      deactivatedNodes.value.add(descendantId);
+    });
+    
+    // Remove any connections to/from this node and its descendants
+    removeConnectionsToDeactivatedNodes([stringNodeId, ...descendants]);
+  }
+  
+  // Update nodes to reflect activation state changes
+  updateNodesActivationState();
+  
+  // Emit the updated deactivated nodes
+  emitStateUpdate();
+};
+
+// Function to remove connections to/from deactivated nodes
+const removeConnectionsToDeactivatedNodes = (nodeIds) => {
+  // Get all current edges
+  const currentEdges = [...edges.value, ...lcaEdges.value, ...userCreatedEdges.value];
+  
+  // Find edges that connect to any of the deactivated nodes
+  const edgesToRemove = currentEdges.filter(edge => 
+    nodeIds.includes(edge.source) || nodeIds.includes(edge.target)
+  );
+  
+  // Remove these edges
+  if (edgesToRemove.length > 0) {
+    removeEdges(edgesToRemove);
+    
+    // Also remove from userCreatedEdges
+    userCreatedEdges.value = userCreatedEdges.value.filter(edge => 
+      !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
+    );
+  }
+};
+
+// Function to update nodes activation state
+const updateNodesActivationState = () => {
+  // Update org chart nodes
+  nodes.value = nodes.value.map(node => {
+    const isDeactivated = deactivatedNodes.value.has(node.id);
+    const isHighlighted = highlightedNode.value === node.id;
+    
+    return {
+      ...node,
+      connectable: isLeafNode(node.id) && !isDeactivated,
+      data: {
+        ...node.data,
+        isDeactivated: isDeactivated
+      },
+      style: {
+        ...node.style,
+        backgroundColor: isDeactivated ? "#cccccc" : (isHighlighted ? "#DE0030" : props.content.nodeColor || "#3498db"),
+        color: isDeactivated ? "#666666" : "#fff",
+        border: `2px solid ${isDeactivated ? "#999999" : (isHighlighted ? "#DE0030" : "#000")}`,
+        opacity: isDeactivated ? 0.7 : 1
+      },
+    };
+  });
+};
+
+// Function to handle new connections
+const handleConnect = (params) => {
+  // Validate connection
+  const sourceNode = findNode(params.source);
+  const targetNode = findNode(params.target);
+  
+  // Don't allow connections to deactivated nodes
+  if (!sourceNode || !targetNode) return;
+  if (sourceNode.data.isDeactivated || targetNode.data.isDeactivated) return;
+  
+  // Create a unique ID for the edge
+  const edgeId = `e-user-${params.source}-${params.target}-${uuidv4().slice(0, 8)}`;
+  
+  // Create the new edge
+  const newEdge = {
+    id: edgeId,
+    source: params.source,
+    target: params.target,
+    animated: false,
+    data: { userCreated: true },
+    style: {
+      stroke: "#2ecc71", // Distinct color for user-created connections
+      strokeWidth: 2,
+      strokeDasharray: "5, 5" // Dashed line for user connections
+    },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 15,
+      height: 15,
+      color: "#2ecc71",
+    },
+  };
+  
+  // Add the edge to the flow
+  addEdges([newEdge]);
+  
+  // Track user-created edges
+  userCreatedEdges.value.push(newEdge);
+  
+  // Emit state update
+  emitStateUpdate();
+};
+
+// Function to emit state update to parent
+const emitStateUpdate = () => {
+  const updatedContent = {
+    ...props.content,
+    deactivatedNodes: Array.from(deactivatedNodes.value),
+    userConnections: userCreatedEdges.value.map(edge => ({
+      source: edge.source,
+      target: edge.target,
+      id: edge.id
+    }))
+  };
+  
+  emit("update:content", updatedContent);
+};
+
 // Compute Org Chart Nodes using improved positioning algorithm
 watchEffect(() => {
   if (!props.content.data || !Array.isArray(props.content.data)) {
@@ -328,10 +535,21 @@ watchEffect(() => {
     return;
   }
 
-  edges.value = props.content.data.flatMap((item) =>
-    item.child_variant_ids?.map((childId) => {
+  edges.value = props.content.data.flatMap((item) => {
+    if (deactivatedNodes.value.has(String(item.id))) {
+      // Don't create edges from deactivated nodes
+      return [];
+    }
+    
+    return item.child_variant_ids?.map((childId) => {
       const stringItemId = String(item.id);
       const stringChildId = String(childId);
+      
+      // Skip if child is deactivated
+      if (deactivatedNodes.value.has(stringChildId)) {
+        return null;
+      }
+      
       const isHighlighted = highlightedNode.value === stringItemId || highlightedNode.value === stringChildId;
       
       return {
@@ -350,8 +568,8 @@ watchEffect(() => {
           color: isHighlighted ? "#DE0030" : props.content.edgeColor || "#000",
         },
       };
-    }) || []
-  );
+    }).filter(Boolean) || [];
+  });
 });
 
 // Compute LCA tree nodes and edges
@@ -368,13 +586,55 @@ watchEffect(() => {
   lcaEdges.value = lcaResult.edges;
 });
 
+// Initialize deactivated nodes from saved state
+watch(() => props.content.deactivatedNodes, (newDeactivatedNodes) => {
+  if (newDeactivatedNodes && Array.isArray(newDeactivatedNodes)) {
+    deactivatedNodes.value = new Set(newDeactivatedNodes);
+    updateNodesActivationState();
+  }
+}, { immediate: true });
+
+// Initialize user connections from saved state
+watch(() => props.content.userConnections, (newConnections) => {
+  if (newConnections && Array.isArray(newConnections)) {
+    // Create edges for saved connections
+    const savedEdges = newConnections.map(conn => ({
+      id: conn.id || `e-user-${conn.source}-${conn.target}-${uuidv4().slice(0, 8)}`,
+      source: conn.source,
+      target: conn.target,
+      animated: false,
+      data: { userCreated: true },
+      style: {
+        stroke: "#2ecc71", // Distinct color for user-created connections
+        strokeWidth: 2,
+        strokeDasharray: "5, 5" // Dashed line for user connections
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 15,
+        height: 15,
+        color: "#2ecc71",
+      },
+    }));
+    
+    userCreatedEdges.value = savedEdges;
+    
+    // Add saved edges to the flow
+    if (savedEdges.length > 0) {
+      nextTick(() => {
+        addEdges(savedEdges);
+      });
+    }
+  }
+}, { immediate: true });
+
 // Combine all nodes and edges for both trees
 const allNodes = computed(() => {
   return [...nodes.value, ...lcaNodes.value];
 });
 
 const allEdges = computed(() => {
-  return [...edges.value, ...lcaEdges.value];
+  return [...edges.value, ...lcaEdges.value, ...userCreatedEdges.value];
 });
 
 // Handle Node Click
@@ -407,9 +667,8 @@ const handleNodeClick = (event) => {
       }
     });
   } else {
-    // Handle LCA node click if needed
+    // Handle LCA node click
     const lcaNodeId = nodeId;
-    // You can add custom handling for LCA nodes here
     
     // Emit the trigger event for LCA node click
     emit("trigger-event", {
@@ -421,6 +680,13 @@ const handleNodeClick = (event) => {
   }
 };
 
+// Handle activation/deactivation button click
+const handleActivationToggle = () => {
+  if (highlightedNode.value) {
+    toggleNodeActivation(highlightedNode.value);
+  }
+};
+
 // Watch for Changes from WeWeb Selection
 watch(() => props.content.selectedInWeWeb, (newSelectedId) => {
   if (!newSelectedId) return;
@@ -428,6 +694,31 @@ watch(() => props.content.selectedInWeWeb, (newSelectedId) => {
   console.log(`🔄 External Selection Changed: Highlighting Node ${newSelectedId}`);
   updateHighlighting(newSelectedId);
 });
+
+// Handle edge removal (Delete key or button)
+const handleEdgeRemove = (event) => {
+  const selectedEdges = getEdges().filter(e => e.selected);
+  
+  if (selectedEdges.length > 0) {
+    // Only allow removing user-created edges
+    const userEdgesToRemove = selectedEdges.filter(edge => 
+      edge.data?.userCreated
+    );
+    
+    if (userEdgesToRemove.length > 0) {
+      // Remove selected edges
+      removeEdges(userEdgesToRemove);
+      
+      // Also remove from userCreatedEdges
+      userCreatedEdges.value = userCreatedEdges.value.filter(edge => 
+        !userEdgesToRemove.some(e => e.id === edge.id)
+      );
+      
+      // Emit state update
+      emitStateUpdate();
+    }
+  }
+};
 
 // Get flag emoji from ISO code
 const getCountryFlag = (isoCode) => {
@@ -467,10 +758,21 @@ onMounted(() => {
     @font-face {
       font-family: 'NotoColorEmoji';
       src: url('https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/fonts/NotoColorEmoji.ttf') format('truetype');
+      unicode-range: U+1F1E6-1F1FF; /* Range for country flag emojis */
       font-display: swap;
     }
   `;
   document.head.appendChild(emojiFontStyle);
+  
+  // Setup connection handling
+  onConnect((params) => {
+    handleConnect(params);
+  });
+  
+  // Setup node change handling (for potential future drag support)
+  onNodesChange((changes) => {
+    console.log("Node changes:", changes);
+  });
 });
 
 // Re-center when nodes change
@@ -485,10 +787,39 @@ watch(() => allNodes.value.length, (newLength, oldLength) => {
     });
   }
 });
+
+// Setup keyboard handler for edge deletion
+const handleKeyDown = (event) => {
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    handleEdgeRemove();
+  }
+};
 </script>
 
 <template>
   <div class="dual-tree-container" :style="{ backgroundColor: content.backgroundColor || '#f4f4f4' }">
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+      <button 
+        class="control-button toggle-activation" 
+        @click="handleActivationToggle"
+        :disabled="!highlightedNode"
+        :class="{ 'disabled': !highlightedNode }">
+        {{ deactivatedNodes.has(highlightedNode) ? 'Activate' : 'Deactivate' }} Node
+      </button>
+      <button 
+        class="control-button remove-edge" 
+        @click="handleEdgeRemove">
+        Remove Selected Connection
+      </button>
+      <div class="instructions">
+        <p>• Click a node to select it</p>
+        <p>• Click the Activate/Deactivate button to toggle node state</p>
+        <p>• Drag between nodes to create connections</p>
+        <p>• Select a connection and click Remove to delete it</p>
+      </div>
+    </div>
+    
     <VueFlow 
       :nodes="allNodes" 
       :edges="allEdges" 
@@ -496,13 +827,16 @@ watch(() => allNodes.value.length, (newLength, oldLength) => {
       :key="allNodes.length"
       :nodesDraggable="false"
       :edgesUpdatable="false"
-      :edgesFocusable="false"
+      :edgesFocusable="true"
+      :edgesSelectable="true"
       :edgesDraggable="false"
-      :nodesConnectable="false">
+      :nodesConnectable="true"
+      :connectOnClick="false"
+      @keydown="handleKeyDown">
       
       <!-- Custom Node Template for Org Chart -->
       <template #node-customNode="{ data }">
-        <div class="custom-node">
+        <div class="custom-node" :class="{ 'deactivated': data.isDeactivated }">
           <div class="product-name">{{ data.productName }}</div>
           <div class="company-name">{{ data.companyName }}</div>
           <div v-if="data.countryCodes && data.countryCodes.length > 0" class="country-flags">
@@ -513,6 +847,9 @@ watch(() => allNodes.value.length, (newLength, oldLength) => {
               :title="code.toUpperCase()">
               {{ getCountryFlag(code) }}
             </span>
+          </div>
+          <div v-if="data.isDeactivated" class="deactivated-badge">
+            DEACTIVATED
           </div>
         </div>
       </template>
@@ -526,6 +863,18 @@ watch(() => allNodes.value.length, (newLength, oldLength) => {
             {{ getCountryFlag(data.country) }}
           </div>
         </div>
+      </template>
+      
+      <!-- Connection Line Template -->
+      <template #connection-line="{ sourceX, sourceY, targetX, targetY }">
+        <path
+          :d="`M ${sourceX},${sourceY} L ${targetX},${targetY}`"
+          class="animated connection-line"
+          stroke="#2ecc71"
+          stroke-width="2"
+          stroke-dasharray="5, 5"
+          fill="none"
+        />
       </template>
     </VueFlow>
   </div>
